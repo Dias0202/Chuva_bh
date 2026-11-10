@@ -102,6 +102,7 @@ def mock_clients(**overrides: Any) -> AwsClients:
         "cloudtrail": MagicMock(),
         "tagging": MagicMock(),
         "sts": MagicMock(),
+        "sagemaker": MagicMock(),
     }
     return AwsClients(**{**defaults, **overrides})
 

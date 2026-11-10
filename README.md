@@ -6,8 +6,8 @@ measure their own quality against observed rainfall and the operational forecast
 ## Status
 
 Phase 0 (foundation) and Phase 1 (data) are deployed to `us-east-2`. Hourly ingestion is running
-and the history is queryable in Athena. Phase 2 (model) is implemented and tested as code, and
-its AWS resources have not been created.
+and the history is queryable in Athena. Phases 2 (model) and 3 (serving) are implemented and
+tested as code, and their AWS resources have not been created.
 
 ## Requirements
 
@@ -134,3 +134,15 @@ uv run python scripts/sagemaker_jobs.py start           # run it
 uv run python scripts/sagemaker_jobs.py tune --train S3_URI --validation S3_URI
 uv run python scripts/sagemaker_jobs.py clarify --model-package-arn ARN --test S3_URI
 ```
+
+## Phase 3: serving
+
+Approving a model in the registry triggers a Lambda that creates or updates the `chuva-bh-rain`
+Serverless Endpoint and records the active version in SSM. Every hour, a scoring Lambda builds
+the features for the current hour, calls the endpoint and writes one item per horizon to
+DynamoDB, with a 90-day TTL. An HTTP API with IAM authentication and throttling serves
+`GET /points` and `GET /forecast?point=<id>`.
+
+Scoring needs the observation of the current hour, which only the INMET API provides. Until the
+API token is configured, scoring records every point as skipped. See
+[ADR-010](docs/adr/010-serving.md).

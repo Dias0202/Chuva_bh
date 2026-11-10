@@ -348,17 +348,18 @@ dependencies = [
     { name = "constructs" },
     { name = "pandas" },
     { name = "pyarrow" },
+    { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "moto", extra = ["cloudformation", "resourcegroupstaggingapi", "s3"] },
+    { name = "moto", extra = ["cloudformation", "dynamodb", "resourcegroupstaggingapi", "s3", "ssm"] },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "types-boto3", extra = ["ce", "cloudformation", "cloudtrail", "cloudwatch", "iam", "resourcegroupstaggingapi", "s3", "sts"] },
+    { name = "types-boto3", extra = ["ce", "cloudformation", "cloudtrail", "cloudwatch", "dynamodb", "iam", "resourcegroupstaggingapi", "s3", "sagemaker", "sagemaker-runtime", "ssm", "sts"] },
 ]
 ml = [
     { name = "sagemaker" },
@@ -373,17 +374,18 @@ requires-dist = [
     { name = "constructs", specifier = "==10.8.1" },
     { name = "pandas", specifier = "==3.1.0" },
     { name = "pyarrow", specifier = "==24.0.0" },
+    { name = "pydantic", specifier = "==2.14.3" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "moto", extras = ["cloudformation", "cloudtrail", "iam", "s3", "sts", "resourcegroupstaggingapi"], specifier = "==5.2.5" },
+    { name = "moto", extras = ["cloudformation", "cloudtrail", "dynamodb", "iam", "resourcegroupstaggingapi", "s3", "sagemaker", "ssm", "sts"], specifier = "==5.2.5" },
     { name = "mypy", specifier = "==2.4.1" },
     { name = "pre-commit", specifier = "==4.7.0" },
     { name = "pytest", specifier = "==9.2.0" },
     { name = "pytest-cov", specifier = "==7.1.0" },
     { name = "ruff", specifier = "==0.17.4" },
-    { name = "types-boto3", extras = ["ce", "cloudformation", "cloudtrail", "cloudwatch", "iam", "resourcegroupstaggingapi", "s3", "sts"], specifier = "==1.43.127" },
+    { name = "types-boto3", extras = ["ce", "cloudformation", "cloudtrail", "cloudwatch", "dynamodb", "iam", "resourcegroupstaggingapi", "s3", "sagemaker", "sagemaker-runtime", "ssm", "sts"], specifier = "==1.43.127" },
 ]
 ml = [
     { name = "sagemaker", specifier = "==2.257.7" },
@@ -883,6 +885,10 @@ cloudformation = [
     { name = "pyparsing" },
     { name = "pyyaml" },
 ]
+dynamodb = [
+    { name = "docker" },
+    { name = "py-partiql-parser" },
+]
 resourcegroupstaggingapi = [
     { name = "cfn-lint" },
     { name = "docker" },
@@ -895,6 +901,9 @@ resourcegroupstaggingapi = [
 ]
 s3 = [
     { name = "py-partiql-parser" },
+    { name = "pyyaml" },
+]
+ssm = [
     { name = "pyyaml" },
 ]
 
@@ -1774,6 +1783,9 @@ cloudtrail = [
 cloudwatch = [
     { name = "types-boto3-cloudwatch" },
 ]
+dynamodb = [
+    { name = "types-boto3-dynamodb" },
+]
 iam = [
     { name = "types-boto3-iam" },
 ]
@@ -1782,6 +1794,15 @@ resourcegroupstaggingapi = [
 ]
 s3 = [
     { name = "types-boto3-s3" },
+]
+sagemaker = [
+    { name = "types-boto3-sagemaker" },
+]
+sagemaker-runtime = [
+    { name = "types-boto3-sagemaker-runtime" },
+]
+ssm = [
+    { name = "types-boto3-ssm" },
 ]
 sts = [
     { name = "types-boto3-sts" },
@@ -1824,6 +1845,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-boto3-dynamodb"
+version = "1.43.124"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/df/7d3075a9ab5583410281ca709528de5987a7d36358d44f3caab90ab6950a/types_boto3_dynamodb-1.43.124.tar.gz", hash = "sha256:117820f4bf7b6cc543a5dbb74046d4c836539771419b1e6a1bc77ec7e238d5db", size = 52666, upload-time = "2026-11-04T23:54:42.818Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/13/b829fe49363717765ac1cea21fb0fd2dba9b884b9a900d98d48aa134c25c/types_boto3_dynamodb-1.43.124-py3-none-any.whl", hash = "sha256:779ae738948d6eaeccf07eb2297795f9f663225d4da4e216f63a5593a13d3920", size = 63309, upload-time = "2026-11-04T23:54:41.571Z" },
+]
+
+[[package]]
 name = "types-boto3-iam"
 version = "1.43.70"
 source = { registry = "https://pypi.org/simple" }
@@ -1848,6 +1878,33 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/98/3c6997d7c7b0ee15c90595bb5165913c944f831bd7529458e1248807d75b/types_boto3_s3-1.43.106.tar.gz", hash = "sha256:aaf25465555efcb54586b141834cd108b2bd0a6f3229e46e72e20675fcd79f35", size = 79270, upload-time = "2026-09-30T22:44:27.614Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/ba/176046d5287c59cf50e4d1bcc4ddb592a8e4b2e6ef33fa3910f97807e88f/types_boto3_s3-1.43.106-py3-none-any.whl", hash = "sha256:a08d18cacdbe77ae8a8e6ed79bbec0b3deaae9eda35d55def30ce72f41440950", size = 86607, upload-time = "2026-09-30T22:44:25.295Z" },
+]
+
+[[package]]
+name = "types-boto3-sagemaker"
+version = "1.43.127"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/2a/b4eb1a161ecbb7b23e652c33ee2cf563f3a0e255fd56a2167ed774b60c36/types_boto3_sagemaker-1.43.127.tar.gz", hash = "sha256:24750aa0c967f9c7b33ee28bb2eefecb6c9768d530e5a5106b1dea700c4c0208", size = 255261, upload-time = "2026-11-10T02:15:56.362Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/4a/99ab6c283c0fdeb0b51a2be57c15fea010821074a6c2395cba566ba760a6/types_boto3_sagemaker-1.43.127-py3-none-any.whl", hash = "sha256:0f752244ee523f498abcc16a03e33faa186f0c86f981b4ea7dea410835f16856", size = 259512, upload-time = "2026-11-10T02:15:53.303Z" },
+]
+
+[[package]]
+name = "types-boto3-sagemaker-runtime"
+version = "1.43.68"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/f4/38a5281f3b12a28321a14c3c1547e904699d1cf9b8a275a6b0f4766f78ec/types_boto3_sagemaker_runtime-1.43.68.tar.gz", hash = "sha256:78c4a6b8726fa533b2b7f986e102540005bc7b30f6da3d6707d89ffd85b72567", size = 15859, upload-time = "2026-08-10T20:04:08.308Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/46/0bf68ab974c75c65eeb7cf6185001ad7f73bc32345515cc7a5cf24301197/types_boto3_sagemaker_runtime-1.43.68-py3-none-any.whl", hash = "sha256:f82c06392b9126b2406baa811ae2101dfc8409b0259bdbebe8a726ca774a0e99", size = 19488, upload-time = "2026-08-10T20:04:06.962Z" },
+]
+
+[[package]]
+name = "types-boto3-ssm"
+version = "1.43.126"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/a7/0a4ce6a34fcf870972b00f0b5510119025dbd4f254087093fa4871139bf5/types_boto3_ssm-1.43.126.tar.gz", hash = "sha256:779c8a066e03830b87988c4eee025dbec00eb4edc8cee92a20480209e64dc04f", size = 98596, upload-time = "2026-11-06T21:01:46.556Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/2e/d8a2b2447fcf2fb99c8390e4c06a81d361e6071fdc700cab3a140412b94a/types_boto3_ssm-1.43.126-py3-none-any.whl", hash = "sha256:2200a45daedc9f1c90b42e818ea8334059c000311aca4df925b484b99ab4197b", size = 100292, upload-time = "2026-11-06T21:01:44.428Z" },
 ]
 
 [[package]]

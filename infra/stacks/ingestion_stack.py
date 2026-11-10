@@ -34,6 +34,9 @@ SCHEDULE_NAME: Final = f"{PROJECT}-ingest-hourly"
 SCHEDULE_EXPRESSION: Final = "cron(5 * * * ? *)"
 METRIC_NAMESPACE: Final = "ChuvaBh/Ingestion"
 RETRY_ATTEMPTS: Final = 2
+# SecureString criado à mão quando o INMET enviar a chave. Sem ele, a coleta de
+# observações fica desligada e só a previsão é ingerida.
+INMET_TOKEN_PARAMETER: Final = f"/{PROJECT}/inmet-token"
 
 DATABASE_NAME: Final = "chuva_bh"
 WORKGROUP_NAME: Final = PROJECT
@@ -108,10 +111,23 @@ class IngestionStack(Stack):
             environment={
                 "RAW_BUCKET": raw_bucket.bucket_name,
                 "CURATED_BUCKET": curated_bucket.bucket_name,
+                "INMET_TOKEN_PARAMETER": INMET_TOKEN_PARAMETER,
             },
         )
         raw_bucket.grant_put(function, "open_meteo/*")
         curated_bucket.grant_put(function, f"{FORECASTS.name}/*")
+        curated_bucket.grant_put(function, f"{OBSERVATIONS.name}/*")
+        # A chave AWS gerenciada do SSM autoriza a decriptação pelo próprio serviço.
+        function.add_to_role_policy(
+            iam.PolicyStatement(
+                sid="ReadInmetToken",
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:{self.partition}:ssm:{self.region}:{self.account}"
+                    f":parameter{INMET_TOKEN_PARAMETER}"
+                ],
+            )
+        )
         # PutMetricData não aceita ARN de recurso: o escopo é dado pela condição.
         function.add_to_role_policy(
             iam.PolicyStatement(

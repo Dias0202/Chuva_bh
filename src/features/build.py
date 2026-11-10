@@ -14,8 +14,9 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
-HORIZONS = (1, 3, 6)
-RAIN_THRESHOLD_MM = 0.5
+from features.constants import HORIZONS as HORIZONS
+from features.constants import RAIN_THRESHOLD_MM as RAIN_THRESHOLD_MM
+
 LABEL = "label"
 KEY_COLUMNS = ("point_id", "issued_at", "horizon_h")
 

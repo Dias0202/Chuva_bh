@@ -6,7 +6,7 @@ import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from aws_cdk import App, Environment
 
@@ -16,6 +16,7 @@ from stacks.common import PROJECT, REGION
 from stacks.foundation_stack import FoundationConfig, FoundationStack
 from stacks.ingestion_stack import IngestionStack
 from stacks.ml_stack import MlStack
+from stacks.serving_stack import ServingStack
 
 ENV_BUDGET_EMAIL: Final = "CHUVA_BUDGET_EMAIL"
 ENV_KILL_SWITCH_USERS: Final = "CHUVA_KILL_SWITCH_USERS"
@@ -39,9 +40,9 @@ def load_config(environ: Mapping[str, str]) -> FoundationConfig:
     )
 
 
-def build_app(environ: Mapping[str, str]) -> App:
+def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = None) -> App:
     """Monta o app com todas as stacks do projeto."""
-    app = App()
+    app = App(context=dict(context) if context else None)
     env = Environment(account=environ.get("CDK_DEFAULT_ACCOUNT"), region=REGION)
     foundation = FoundationStack(
         app,
@@ -62,7 +63,7 @@ def build_app(environ: Mapping[str, str]) -> App:
         artifacts_bucket=foundation.buckets["artifacts"],
         key=foundation.key,
     )
-    MlStack(
+    ml = MlStack(
         app,
         "MlStack",
         stack_name=f"{PROJECT}-ml",
@@ -72,6 +73,15 @@ def build_app(environ: Mapping[str, str]) -> App:
         artifacts_bucket=foundation.buckets["artifacts"],
         key=foundation.key,
         isolation=app.node.try_get_context("isolation") == "true",
+    )
+    ServingStack(
+        app,
+        "ServingStack",
+        stack_name=f"{PROJECT}-serving",
+        description="chuva-bh: scoring horário, API de previsões e deploy do endpoint",
+        env=env,
+        curated_bucket=foundation.buckets["curated"],
+        sagemaker_role=ml.role,
     )
     return app
 

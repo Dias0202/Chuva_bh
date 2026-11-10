@@ -15,6 +15,7 @@ from app import (
 )
 from aws_cdk import App, Environment
 from aws_cdk.assertions import Template
+from stacks.bundling import SKIP_BUNDLING_CONTEXT
 from stacks.common import REGION
 from stacks.foundation_stack import FoundationConfig, FoundationStack
 
@@ -320,7 +321,7 @@ def test_load_config_parses_optional_users() -> None:
 
 
 def test_app_exposes_foundation_stack_with_the_planned_id() -> None:
-    app = build_app({ENV_BUDGET_EMAIL: EMAIL})
+    app = build_app({ENV_BUDGET_EMAIL: EMAIL}, context=SKIP_BUNDLING_CONTEXT)
     stack = app.node.find_child("FoundationStack")
     assert isinstance(stack, FoundationStack)
     assert stack.stack_name == "chuva-bh-foundation"

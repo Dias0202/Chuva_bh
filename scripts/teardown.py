@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from types_boto3_resourcegroupstaggingapi.client import ResourceGroupsTaggingAPIClient
     from types_boto3_s3.client import S3Client
     from types_boto3_s3.type_defs import ObjectIdentifierTypeDef
+    from types_boto3_sagemaker.client import SageMakerClient
     from types_boto3_sts.client import STSClient
 
 logger = logging.getLogger("teardown")
@@ -48,6 +49,7 @@ FOUNDATION_PHASE: Final = 0
 TYPE_BUCKET: Final = "AWS::S3::Bucket"
 TYPE_MANAGED_POLICY: Final = "AWS::IAM::ManagedPolicy"
 TYPE_TRAIL: Final = "AWS::CloudTrail::Trail"
+SAGEMAKER_DELETE_ORDER: Final = ("endpoint", "endpoint-config", "model")
 
 S3_DELETE_BATCH_SIZE: Final = 1000
 # A trail ainda pode entregar arquivos depois de parar, e isso faz a remoção do
@@ -76,6 +78,7 @@ class AwsClients:
     cloudtrail: CloudTrailClient
     tagging: ResourceGroupsTaggingAPIClient
     sts: STSClient
+    sagemaker: SageMakerClient
 
     @classmethod
     def create(cls, profile: str | None = None) -> AwsClients:
@@ -87,6 +90,7 @@ class AwsClients:
             cloudtrail=session.client("cloudtrail"),
             tagging=session.client("resourcegroupstaggingapi"),
             sts=session.client("sts"),
+            sagemaker=session.client("sagemaker"),
         )
 
 
@@ -147,6 +151,43 @@ def arns_outside_stacks(arns: Iterable[str], resources: Sequence[StackResource])
     """Filtra os ARNs que não correspondem a nenhum recurso das stacks listadas."""
     physical_ids = [resource.physical_id for resource in resources if resource.physical_id]
     return [arn for arn in arns if not any(physical in arn for physical in physical_ids)]
+
+
+def sagemaker_resources(arns: Iterable[str]) -> list[tuple[str, str]]:
+    """Endpoints, configurações e modelos criados fora do CloudFormation, na ordem de remoção.
+
+    O deployer da Fase 3 e o exercício do Model Monitor criam esses recursos por API.
+    """
+    found = []
+    for arn in arns:
+        parts = arn.split(":", 5)
+        if len(parts) != 6 or parts[2] != "sagemaker":
+            continue
+        kind, _, name = parts[5].partition("/")
+        if kind in SAGEMAKER_DELETE_ORDER and name:
+            found.append((kind, name))
+    return sorted(found, key=lambda item: (SAGEMAKER_DELETE_ORDER.index(item[0]), item[1]))
+
+
+def delete_sagemaker_resources(
+    sagemaker: SageMakerClient, resources: Iterable[tuple[str, str]]
+) -> None:
+    for kind, name in resources:
+        try:
+            if kind == "endpoint":
+                sagemaker.delete_endpoint(EndpointName=name)
+                sagemaker.get_waiter("endpoint_deleted").wait(
+                    EndpointName=name,
+                    WaiterConfig={"Delay": WAITER_DELAY_SECONDS, "MaxAttempts": WAITER_MAX_POLLS},
+                )
+            elif kind == "endpoint-config":
+                sagemaker.delete_endpoint_config(EndpointConfigName=name)
+            else:
+                sagemaker.delete_model(ModelName=name)
+        except ClientError as error:
+            if "Could not find" not in error.response.get("Error", {}).get("Message", ""):
+                raise
+        logger.info("SageMaker %s %s apagado", kind, name)
 
 
 def physical_ids(resources: Iterable[StackResource], resource_type: str) -> list[str]:
@@ -311,15 +352,16 @@ def run(clients: AwsClients, phases: Sequence[int], *, dry_run: bool) -> None:
     scope = phases[0] if len(phases) == 1 else None
 
     print(f"Conta {clients.sts.get_caller_identity()['Account']}, região {REGION}")
-    print_plan(
-        targets,
-        resources_by_stack,
-        arns_outside_stacks(list_tagged_arns(clients, scope), all_resources),
-    )
+    orphans = arns_outside_stacks(list_tagged_arns(clients, scope), all_resources)
+    endpoints = sagemaker_resources(orphans)
+    print_plan(targets, resources_by_stack, orphans)
+    for kind, name in endpoints:
+        print(f"  -> apagar SageMaker {kind} {name} (criado fora do CloudFormation)")
     if dry_run:
         print("\nDry-run: nada foi alterado.")
         return
 
+    delete_sagemaker_resources(clients.sagemaker, endpoints)
     for _, stack_name in targets:
         delete_stack(clients, stack_name)
 

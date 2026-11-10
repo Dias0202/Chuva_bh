@@ -31,8 +31,13 @@ def get_bytes(
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     attempts: int = DEFAULT_ATTEMPTS,
     sleep: Callable[[float], None] = time.sleep,
+    label: str | None = None,
 ) -> bytes:
-    """Baixa a URL, repetindo apenas erros transitórios."""
+    """Baixa a URL, repetindo apenas erros transitórios.
+
+    `label` substitui a URL nas mensagens de erro, para URLs que carregam credenciais.
+    """
+    shown = label or url
     if not url.startswith("https://"):
         raise ValueError("somente URLs https são aceitas")
     if attempts < 1:
@@ -50,9 +55,9 @@ def get_bytes(
                 return body
         except urllib.error.HTTPError as error:
             if error.code not in RETRYABLE_STATUS:
-                raise FetchError(f"HTTP {error.code} em {url}") from error
+                raise FetchError(f"HTTP {error.code} em {shown}") from error
             last_error = error
         except (urllib.error.URLError, TimeoutError) as error:
             last_error = error
         logger.warning("Tentativa %d de %d falhou: %s", attempt + 1, attempts, last_error)
-    raise FetchError(f"Sem resposta de {url} após {attempts} tentativas") from last_error
+    raise FetchError(f"Sem resposta de {shown} após {attempts} tentativas") from last_error
