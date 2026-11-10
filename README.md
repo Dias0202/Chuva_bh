@@ -3,11 +3,46 @@
 Rain nowcasting for Belo Horizonte on AWS: an MLOps platform and a GenAI agent that
 measure their own quality against observed rainfall and the operational forecast.
 
+**Result:** on the 2025 test year, the model's Brier score is 11.8% better than the best
+baseline (calibrated persistence) for rain of at least 0.5 mm in the next 1 to 6 hours, and
+PR-AUC goes from 0.16 to 0.37. Without numerical forecast features, which partly leak the
+future in the historical data, the gain is 2.8%. See the [model card](docs/model-card.md).
+
 ## Status
 
-Phase 0 (foundation) and Phase 1 (data) are deployed to `us-east-2`. Hourly ingestion is running
-and the history is queryable in Athena. Phases 2 (model), 3 (serving), 4 (agent) and 5
-(operations) are implemented and tested as code, and their AWS resources have not been created.
+| Phase | Scope | State |
+|---|---|---|
+| 0 | KMS, buckets, CloudTrail, budget and kill switch | Deployed |
+| 1 | Hourly ingestion, Parquet lake, Glue and Athena, 7 years of history | Deployed |
+| 2 | Features, baselines, SageMaker pipeline, tuning, Clarify | Code and tests; trained locally |
+| 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Code and tests |
+| 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Code and tests |
+| 5 | Quality and drift monitoring, dashboard, alarms, retraining | Code and tests |
+
+Live scoring and monitoring need the hourly observation from the INMET API, whose access token
+has been requested. Until then, observed rainfall arrives about one month late.
+
+Architecture and request flow: [docs/architecture.md](docs/architecture.md). Decisions:
+[docs/adr](docs/adr/README.md). Exam mapping: [docs/exam-mapping.md](docs/exam-mapping.md).
+
+## Cost
+
+Measured spend so far is in [docs/cost-log.md](docs/cost-log.md); billing data lags by up to a
+day. The plan targets at most US$ 50 for the whole project. With every phase deployed, the
+largest recurring items are expected to be CloudWatch custom metrics (about US$ 5 per month),
+the KMS key (US$ 1 per month) and Bedrock tokens, which depend on use.
+
+After the project, the suggestion is to keep only Phases 0, 1 and 3 running and remove the
+rest with `scripts/teardown.py --phase N --yes`.
+
+## Limitations
+
+- One test year and four stations; summer storms are local, so a station may not represent
+  nearby neighbourhoods.
+- Forecast features from the historical API include runs issued after the prediction time.
+  New runs are stored with their issue time, so retraining on them removes this bias.
+- The agent's Guardrail topics are defined in English and still need to be measured on
+  Portuguese questions.
 
 ## Requirements
 
