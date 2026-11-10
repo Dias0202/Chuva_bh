@@ -64,8 +64,12 @@ class UvLocalBundling:
                 check=True,
             )
         for package in self.packages:
+            source = self.source_dir / package
+            if source.is_file():
+                shutil.copy2(source, Path(output_dir) / package)
+                continue
             shutil.copytree(
-                self.source_dir / package,
+                source,
                 Path(output_dir) / package,
                 ignore=shutil.ignore_patterns(*_IGNORED),
                 dirs_exist_ok=True,

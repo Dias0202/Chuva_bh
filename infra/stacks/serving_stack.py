@@ -34,7 +34,14 @@ SCORE_SCHEDULE: Final = "cron(20 * * * ? *)"
 API_RATE_LIMIT: Final = 5
 API_BURST_LIMIT: Final = 10
 PYDANTIC: Final = "pydantic==2.14.3"
-_EXCLUDE: Final = ["**/__pycache__", "**/__pycache__/**", "**/*.pyc", "training/**"]
+_EXCLUDE: Final = [
+    "**/__pycache__",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "agent",
+    "agent_main.py",
+    "training",
+]
 
 
 class ServingStack(Stack):

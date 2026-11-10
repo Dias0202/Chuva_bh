@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from stacks.common import PROJECT, REGION
 from stacks.foundation_stack import FoundationConfig, FoundationStack
+from stacks.genai_stack import GenAiStack
 from stacks.ingestion_stack import IngestionStack
 from stacks.ml_stack import MlStack
 from stacks.serving_stack import ServingStack
@@ -74,7 +75,7 @@ def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = No
         key=foundation.key,
         isolation=app.node.try_get_context("isolation") == "true",
     )
-    ServingStack(
+    serving = ServingStack(
         app,
         "ServingStack",
         stack_name=f"{PROJECT}-serving",
@@ -82,6 +83,17 @@ def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = No
         env=env,
         curated_bucket=foundation.buckets["curated"],
         sagemaker_role=ml.role,
+    )
+    GenAiStack(
+        app,
+        "GenAiStack",
+        stack_name=f"{PROJECT}-genai",
+        description="chuva-bh: Knowledge Base, Guardrail, prompt e agente no AgentCore",
+        env=env,
+        kb_bucket=foundation.buckets["kb-docs"],
+        key=foundation.key,
+        api=serving.api,
+        chunking=app.node.try_get_context("kb_chunking") or "fixed",
     )
     return app
 

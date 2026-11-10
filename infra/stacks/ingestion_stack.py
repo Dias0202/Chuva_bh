@@ -98,7 +98,15 @@ class IngestionStack(Stack):
             architecture=lambda_.Architecture.X86_64,
             handler="ingestion.handler.handler",
             code=lambda_.Code.from_asset(
-                str(SOURCE_DIR), exclude=["**/__pycache__", "**/__pycache__/**", "**/*.pyc"]
+                str(SOURCE_DIR),
+                exclude=[
+                    "**/__pycache__",
+                    "**/__pycache__/**",
+                    "**/*.pyc",
+                    "agent",
+                    "agent_main.py",
+                    "training",
+                ],
             ),
             layers=[
                 lambda_.LayerVersion.from_layer_version_arn(self, "PandasLayer", PANDAS_LAYER_ARN)

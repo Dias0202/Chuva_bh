@@ -15,6 +15,11 @@ dependencies = [
 ]
 
 [dependency-groups]
+agent = [
+    "bedrock-agentcore==1.25.4",
+    "langchain-aws==1.9.2",
+    "langgraph==1.2.20",
+]
 dev = [
     "moto[cloudformation,cloudtrail,dynamodb,iam,resourcegroupstaggingapi,s3,sagemaker,ssm,sts]==5.2.5",
     "mypy==2.4.1",
@@ -22,7 +27,7 @@ dev = [
     "pytest==9.2.0",
     "pytest-cov==7.1.0",
     "ruff==0.17.4",
-    "types-boto3[ce,cloudformation,cloudtrail,cloudwatch,dynamodb,iam,resourcegroupstaggingapi,s3,sagemaker,sagemaker-runtime,ssm,sts]==1.43.127",
+    "types-boto3[bedrock-agent-runtime,ce,cloudformation,cloudtrail,cloudwatch,dynamodb,iam,resourcegroupstaggingapi,s3,sagemaker,sagemaker-runtime,ssm,sts]==1.43.127",
 ]
 ml = [
     "sagemaker==2.257.7",
@@ -31,7 +36,7 @@ ml = [
 
 [tool.uv]
 package = false
-default-groups = ["dev", "ml"]
+default-groups = ["dev", "ml", "agent"]
 
 [tool.ruff]
 target-version = "py312"

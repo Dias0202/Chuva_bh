@@ -6,8 +6,8 @@ measure their own quality against observed rainfall and the operational forecast
 ## Status
 
 Phase 0 (foundation) and Phase 1 (data) are deployed to `us-east-2`. Hourly ingestion is running
-and the history is queryable in Athena. Phases 2 (model) and 3 (serving) are implemented and
-tested as code, and their AWS resources have not been created.
+and the history is queryable in Athena. Phases 2 (model), 3 (serving) and 4 (agent) are
+implemented and tested as code, and their AWS resources have not been created.
 
 ## Requirements
 
@@ -146,3 +146,22 @@ DynamoDB, with a 90-day TTL. An HTTP API with IAM authentication and throttling 
 Scoring needs the observation of the current hour, which only the INMET API provides. Until the
 API token is configured, scoring records every point as skipped. See
 [ADR-010](docs/adr/010-serving.md).
+
+## Phase 4: agent
+
+A LangGraph agent answers questions such as "vai chover na Pampulha às 18h?". It has three
+read-only tools with schema-validated arguments: the forecast API, the list of points and a
+Bedrock Knowledge Base over the project's own documents, stored in S3 Vectors. A Bedrock
+Guardrail blocks off-topic requests and masks personal data, the system prompt is versioned in
+Prompt Management, and the code runs on the AgentCore Runtime as a zip, without a container.
+
+```bash
+uv run python scripts/genai_ops.py sync-kb          # upload docs/kb and reindex
+uv run python scripts/genai_ops.py enable-logging   # Bedrock invocation logging, 14 days
+uv run python scripts/genai_ops.py ask "Vai chover na Pampulha às 18h?"
+uv run python eval/run_eval.py                      # golden set, with LLM-as-a-judge
+```
+
+The golden set has 36 cases. The targets are 85% tool accuracy and 0.8 faithfulness. Deployment
+risks, including the account SCP and cross-region inference, are in
+[ADR-011](docs/adr/011-agente.md).
