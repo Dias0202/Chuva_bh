@@ -5,7 +5,6 @@ Uso:
     sagemaker_jobs.py upsert                       cria ou atualiza o pipeline
     sagemaker_jobs.py start                        inicia uma execução do pipeline
     sagemaker_jobs.py tune --train S3 --validation S3
-    sagemaker_jobs.py clarify --model-package-arn ARN --test S3
     sagemaker_jobs.py isolated-train --train S3 --validation S3
 
 Os URIs de entrada são as saídas do passo Preprocess de uma execução anterior.
@@ -15,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Final
@@ -26,8 +24,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 ROOT: Final = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from features.build import FEATURE_SETS, LABEL  # noqa: E402
-from training.config import DEFAULT_FEATURE_SET, HYPERPARAMETERS  # noqa: E402
+from training.config import HYPERPARAMETERS  # noqa: E402
 
 REGION: Final = "us-east-2"
 PROJECT: Final = "chuva-bh"
@@ -140,50 +137,6 @@ def tune(ctx: dict[str, Any], args: argparse.Namespace) -> None:
     print(f"Tuning iniciado: {job.name if job else 'nome indisponível'}")
 
 
-def clarify(ctx: dict[str, Any], args: argparse.Namespace) -> None:
-    """SHAP sobre o conjunto de teste. O Clarify cria e apaga um endpoint temporário."""
-    from sagemaker import clarify as sm_clarify
-    from sagemaker.session import Session
-
-    sagemaker_client = ctx["boto"].client("sagemaker")
-    model_name = f"{PROJECT}-clarify-{int(time.time())}"
-    sagemaker_client.create_model(
-        ModelName=model_name,
-        PrimaryContainer={"ModelPackageName": args.model_package_arn},
-        ExecutionRoleArn=ctx["role"],
-    )
-    features = list(FEATURE_SETS[args.feature_set])
-    try:
-        processor = sm_clarify.SageMakerClarifyProcessor(
-            role=ctx["role"],
-            instance_count=1,
-            instance_type="ml.m5.large",
-            max_runtime_in_seconds=MAX_RUNTIME_SECONDS,
-            sagemaker_session=Session(boto_session=ctx["boto"], default_bucket=ctx["artifacts"]),
-        )
-        processor.run_explainability(
-            data_config=sm_clarify.DataConfig(
-                s3_data_input_path=args.test,
-                s3_output_path=f"s3://{ctx['artifacts']}/sagemaker/clarify/{model_name}",
-                label=LABEL,
-                headers=[LABEL, *features],
-                dataset_type="application/x-parquet",
-            ),
-            model_config=sm_clarify.ModelConfig(
-                model_name=model_name,
-                instance_type="ml.m5.large",
-                instance_count=1,
-                accept_type="text/csv",
-                content_type="text/csv",
-            ),
-            explainability_config=sm_clarify.SHAPConfig(
-                num_samples=100, agg_method="mean_abs", save_local_shap_values=False
-            ),
-        )
-    finally:
-        sagemaker_client.delete_model(ModelName=model_name)
-
-
 def isolated_train(ctx: dict[str, Any], args: argparse.Namespace) -> None:
     ml = ctx["ml"]
     if "IsolatedSubnetIds" not in ml:
@@ -209,10 +162,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         p = sub.add_parser(name)
         p.add_argument("--train", required=True)
         p.add_argument("--validation", required=True)
-    p = sub.add_parser("clarify")
-    p.add_argument("--model-package-arn", required=True)
-    p.add_argument("--test", required=True)
-    p.add_argument("--feature-set", choices=sorted(FEATURE_SETS), default=DEFAULT_FEATURE_SET)
     args = parser.parse_args(argv)
 
     try:
@@ -221,8 +170,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             upsert(ctx, start=args.command == "start")
         elif args.command == "tune":
             tune(ctx, args)
-        elif args.command == "clarify":
-            clarify(ctx, args)
         else:
             isolated_train(ctx, args)
     except (ClientError, BotoCoreError) as error:

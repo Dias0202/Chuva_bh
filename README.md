@@ -14,8 +14,8 @@ future in the historical data, the gain is 2.8%. See the [model card](docs/model
 |---|---|---|
 | 0 | KMS, buckets, CloudTrail, budget and kill switch | Deployed |
 | 1 | Hourly ingestion, Parquet lake, Glue and Athena, 7 years of history | Deployed |
-| 2 | Features, baselines, SageMaker pipeline, tuning, Clarify | Deployed; pipeline run and model v1 registered, pending approval |
-| 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Code and tests |
+| 2 | Features, baselines, SageMaker pipeline, tuning, SHAP | Deployed; pipeline run and model v1 registered, pending approval |
+| 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Deployed; model v1 serving, scoring waits for the INMET token |
 | 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Code and tests |
 | 5 | Quality and drift monitoring, dashboard, alarms, retraining | Code and tests |
 
@@ -169,7 +169,7 @@ uv run python scripts/train_local.py                    # local experiment, read
 uv run python scripts/sagemaker_jobs.py upsert          # create or update the pipeline
 uv run python scripts/sagemaker_jobs.py start           # run it
 uv run python scripts/sagemaker_jobs.py tune --train S3_URI --validation S3_URI
-uv run python scripts/sagemaker_jobs.py clarify --model-package-arn ARN --test S3_URI
+uv run python scripts/explain.py --model-package-arn ARN --test S3_URI  # TreeSHAP
 ```
 
 ## Phase 3: serving

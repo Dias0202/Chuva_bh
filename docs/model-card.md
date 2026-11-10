@@ -43,6 +43,18 @@ Por horizonte, o modelo com todas as features tem Brier de 0,0180 em 1 h, 0,0224
 O pipeline do SageMaker reproduziu esses números em 2026-11-10 (Brier 0,0211, PR-AUC 0,371) e
 registrou a versão 1 no grupo `chuva-bh-rain`, pendente de aprovação manual.
 
+## Tuning
+
+Um tuning Bayesiano com 10 jobs Spot (2 em paralelo) chegou a logloss de validação de 0,08753,
+contra 0,08778 dos hiperparâmetros padrão: 0,3% de melhora, dentro do ruído. O padrão foi
+mantido. Melhor combinação: `eta` 0,072, `max_depth` 4, `min_child_weight` 20 e `subsample` 0,90.
+
+## Explicabilidade
+
+Valores SHAP do modelo registrado, calculados com TreeSHAP, estão em `docs/explainability.md`.
+As features de previsão numérica (nuvens, chuva acumulada e umidade previstas) dominam no
+geral; nas horas com chuva, a chuva observada no momento ganha peso.
+
 ## Limitações e vieses
 
 - **Vazamento parcial nas features de previsão.** A série histórica da Open-Meteo não informa a

@@ -9,7 +9,7 @@
 | Corpus, chunking e S3 Vectors | `docs/kb`, `infra/stacks/genai_stack.py` | D1 | Preparação de dados para GenAI e vector stores |
 | XGBoost built-in, Spot com checkpoint, tuning Bayesiano | `src/training/pipeline.py`, `scripts/sagemaker_jobs.py` | D2 | Treino, HPO e custo de treino |
 | Baselines calibradas, Brier, PR-AUC, CSI, confiabilidade | `src/training` | D2 | Avaliação de modelos probabilísticos |
-| Clarify com SHAP | `scripts/sagemaker_jobs.py clarify` | D2 | Explicabilidade |
+| SHAP com TreeSHAP (o Clarify está em manutenção para contas novas) | `scripts/explain.py`, `docs/explainability.md` | D2 | Explicabilidade |
 | Model Registry com aprovação manual | `infra/stacks/ml_stack.py` | D2, D3 | Versionamento e governança de modelos |
 | Escolha de modelo, prompt versionado e avaliação com LLM-as-a-judge | `src/agent`, `eval/` | D2 | Seleção e avaliação de foundation models |
 | SageMaker Pipelines com condição sobre o Brier | `src/training/pipeline.py` | D3 | Orquestração de ML |
