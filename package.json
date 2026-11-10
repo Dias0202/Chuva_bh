@@ -1,0 +1,9 @@
+{
+  "name": "chuva-bh-infra",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pins the AWS CDK CLI used by this repository",
+  "devDependencies": {
+    "aws-cdk": "2.1148.0"
+  }
+}

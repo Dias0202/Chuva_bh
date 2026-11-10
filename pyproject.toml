@@ -1,0 +1,67 @@
+[project]
+name = "chuva-bh"
+version = "0.1.0"
+description = "Rain nowcasting for Belo Horizonte: MLOps platform and GenAI agent on AWS"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "aws-cdk-lib==2.275.0",
+    "boto3==1.43.127",
+    "constructs==10.8.1",
+]
+
+[dependency-groups]
+dev = [
+    "moto[cloudformation,cloudtrail,iam,s3,sts,resourcegroupstaggingapi]==5.2.5",
+    "mypy==2.4.1",
+    "pre-commit==4.7.0",
+    "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.4",
+    "types-boto3[ce,cloudformation,cloudtrail,iam,resourcegroupstaggingapi,s3,sts]==1.43.127",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["cdk.out"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "C4", "PT"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["infra", "scripts", "tests"]
+mypy_path = ["infra", "scripts"]
+explicit_package_bases = true
+namespace_packages = true
+exclude = ["cdk\\.out"]
+
+[[tool.mypy.overrides]]
+module = ["moto", "moto.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["infra", "scripts"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "-m",
+    "not aws",
+    "--cov=infra",
+    "--cov=scripts",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",
+]
+markers = ["aws: integration test that calls a real AWS account"]
