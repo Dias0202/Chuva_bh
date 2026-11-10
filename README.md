@@ -26,7 +26,6 @@ Deployment settings are read from the environment and are never stored in Git. S
 | Variable | Required | Purpose |
 |---|---|---|
 | `CHUVA_BUDGET_EMAIL` | yes | Receives budget alerts and kill switch notifications |
-| `CHUVA_GITHUB_REPOSITORY` | yes | `<owner>/<repo>` allowed to assume the deploy role |
 | `CHUVA_KILL_SWITCH_USERS` | no | Comma-separated IAM users that also receive the deny policy |
 
 ## Checks
@@ -51,7 +50,6 @@ npx cdk synth --quiet
 - A US$ 60 AWS Budget with email alerts at 25, 50, 80 and 100% of actual spend.
 - A kill switch: at 90% an AWS Budgets action attaches a deny policy that blocks creating
   SageMaker, Bedrock and AgentCore resources.
-- A GitHub OIDC provider and a deploy role restricted to the `main` branch of one repository.
 
 Design notes:
 
@@ -60,13 +58,14 @@ Design notes:
 - The budget accumulates from 2026-11-01 instead of resetting monthly, because the limit
   applies to the whole project.
 - The kill switch targets the CDK CloudFormation execution role, which is the identity that
-  actually creates resources, as well as the GitHub deploy role. It stops new resources only:
-  running workloads keep running, and billing data can lag by several hours.
+  actually creates resources. It stops new resources only: running workloads keep running,
+  and billing data can lag by several hours.
+- Deployments run from a workstation for now, so there is no GitHub Actions deploy role.
 
 ### Deployment
 
 ```bash
-npx cdk bootstrap aws://<account>/us-east-1 --tags Project=chuva-bh --tags Phase=0 --tags Owner=dias
+npx cdk bootstrap aws://<account>/us-east-2 --tags Project=chuva-bh --tags Phase=0 --tags Owner=dias
 npx cdk diff FoundationStack
 npx cdk deploy FoundationStack
 ```

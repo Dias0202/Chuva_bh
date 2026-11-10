@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("teardown")
 
 PROJECT: Final = "chuva-bh"
-REGION: Final = "us-east-1"
+REGION: Final = "us-east-2"
 PHASE_STACKS: Final[dict[int, str]] = {
     0: f"{PROJECT}-foundation",
     1: f"{PROJECT}-ingestion",

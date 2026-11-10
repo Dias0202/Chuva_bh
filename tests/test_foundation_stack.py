@@ -2,24 +2,23 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 from typing import Any
 
 import pytest
+import teardown
 from app import (
     ENV_BUDGET_EMAIL,
-    ENV_GITHUB_REPOSITORY,
     ENV_KILL_SWITCH_USERS,
     build_app,
     load_config,
 )
 from aws_cdk import App, Environment
 from aws_cdk.assertions import Template
+from stacks.common import REGION
 from stacks.foundation_stack import FoundationConfig, FoundationStack
 
 ACCOUNT = "111122223333"
-REPOSITORY = "example-owner/chuva-bh"
 EMAIL = "alerts@example.invalid"
 REQUIRED_TAGS = {"Project": "chuva-bh", "Phase": "0", "Owner": "dias"}
 # Tipos que o CloudFormation não permite marcar com tags.
@@ -44,13 +43,11 @@ FORBIDDEN_TYPES = {
 
 
 def synth(**config_overrides: Any) -> Template:
-    config = FoundationConfig(
-        **{"budget_email": EMAIL, "github_repository": REPOSITORY, **config_overrides}
-    )
+    config = FoundationConfig(**{"budget_email": EMAIL, **config_overrides})
     stack = FoundationStack(
         App(),
         "TestFoundation",
-        env=Environment(account=ACCOUNT, region="us-east-1"),
+        env=Environment(account=ACCOUNT, region="us-east-2"),
         config=config,
     )
     return Template.from_stack(stack)
@@ -97,23 +94,13 @@ def as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else [value]
 
 
-def deploy_role_trust(template: Template) -> dict[str, Any]:
-    for resource in resources_of(template, "AWS::IAM::Role").values():
-        if resource["Properties"].get("RoleName") == "chuva-bh-github-deploy":
-            statement: dict[str, Any] = resource["Properties"]["AssumeRolePolicyDocument"][
-                "Statement"
-            ][0]
-            return statement
-    pytest.fail("role de deploy não encontrada")
-
-
 def test_creates_the_four_data_buckets_and_the_audit_bucket(template: Template) -> None:
     names = {
         resource["Properties"]["BucketName"]
         for resource in resources_of(template, "AWS::S3::Bucket").values()
     }
     assert names == {
-        f"chuva-bh-{name}-{ACCOUNT}-us-east-1"
+        f"chuva-bh-{name}-{ACCOUNT}-us-east-2"
         for name in ("raw", "curated", "artifacts", "kb-docs", "audit")
     }
 
@@ -190,7 +177,7 @@ def test_key_policy_lets_only_the_project_trail_encrypt(template: Template) -> N
     assert source_arn_parts == [
         "arn:",
         {"Ref": "AWS::Partition"},
-        f":cloudtrail:us-east-1:{ACCOUNT}:trail/chuva-bh-trail",
+        f":cloudtrail:us-east-2:{ACCOUNT}:trail/chuva-bh-trail",
     ]
 
 
@@ -229,13 +216,7 @@ def test_kill_switch_fires_at_ninety_percent_without_manual_approval(template: T
 def test_kill_switch_targets_the_role_that_actually_creates_resources(template: Template) -> None:
     action = single_properties(template, "AWS::Budgets::BudgetsAction")
     roles = action["Definition"]["IamActionDefinition"]["Roles"]
-    assert f"cdk-hnb659fds-cfn-exec-role-{ACCOUNT}-us-east-1" in roles
-    deploy_role_id = next(
-        logical_id
-        for logical_id, resource in resources_of(template, "AWS::IAM::Role").items()
-        if resource["Properties"].get("RoleName") == "chuva-bh-github-deploy"
-    )
-    assert {"Ref": deploy_role_id} in roles
+    assert roles == [f"cdk-hnb659fds-cfn-exec-role-{ACCOUNT}-us-east-2"]
 
 
 def test_kill_switch_policy_blocks_creation_but_not_deletion(template: Template) -> None:
@@ -271,31 +252,6 @@ def test_kill_switch_omits_users_by_default(template: Template) -> None:
     assert "Users" not in action["Definition"]["IamActionDefinition"]
 
 
-def test_github_trust_is_pinned_to_repository_and_branch(template: Template) -> None:
-    trust = deploy_role_trust(template)
-    assert trust["Action"] == "sts:AssumeRoleWithWebIdentity"
-    conditions = trust["Condition"]
-    assert set(conditions) == {"StringEquals"}
-    assert conditions["StringEquals"] == {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": f"repo:{REPOSITORY}:ref:refs/heads/main",
-    }
-
-
-def test_github_role_can_only_assume_cdk_bootstrap_roles(template: Template) -> None:
-    statements = [
-        statement
-        for _, statement in iam_statements(template)
-        if statement.get("Sid") == "AssumeCdkBootstrapRoles"
-    ]
-    assert len(statements) == 1
-    assert statements[0]["Action"] == "sts:AssumeRole"
-    resources = json.dumps(statements[0]["Resource"])
-    assert "*" not in resources
-    for kind in ("deploy-role", "file-publishing-role", "image-publishing-role", "lookup-role"):
-        assert f"cdk-hnb659fds-{kind}" in resources
-
-
 def test_identity_policies_only_use_wildcard_on_the_deny_statement(template: Template) -> None:
     offenders = [
         logical_id
@@ -325,34 +281,38 @@ def test_stack_has_no_forbidden_or_lambda_backed_resources(template: Template) -
     assert "AWS::EC2::VPC" not in types
 
 
+def test_stack_has_no_github_oidc_resources(template: Template) -> None:
+    types = {resource["Type"] for resource in template.to_json()["Resources"].values()}
+    assert "AWS::IAM::OIDCProvider" not in types
+
+
+def test_teardown_operates_in_the_same_region_as_the_stacks() -> None:
+    assert teardown.REGION == REGION
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
         {"budget_email": "invalido"},
         {"budget_email": "a b@example.invalid"},
-        {"github_repository": "sem-barra"},
-        {"github_repository": "owner/repo:*"},
         {"kill_switch_users": ("usuario invalido",)},
     ],
 )
 def test_config_rejects_invalid_values(overrides: dict[str, Any]) -> None:
-    base: dict[str, Any] = {"budget_email": EMAIL, "github_repository": REPOSITORY}
+    base: dict[str, Any] = {"budget_email": EMAIL}
     with pytest.raises(ValueError, match=r"deve|inválidos"):
         FoundationConfig(**{**base, **overrides})
 
 
 def test_load_config_refuses_to_run_without_required_variables() -> None:
     with pytest.raises(SystemExit, match=ENV_BUDGET_EMAIL):
-        load_config({ENV_GITHUB_REPOSITORY: REPOSITORY})
-    with pytest.raises(SystemExit, match=ENV_GITHUB_REPOSITORY):
-        load_config({ENV_BUDGET_EMAIL: EMAIL})
+        load_config({})
 
 
 def test_load_config_parses_optional_users() -> None:
     config = load_config(
         {
             ENV_BUDGET_EMAIL: EMAIL,
-            ENV_GITHUB_REPOSITORY: REPOSITORY,
             ENV_KILL_SWITCH_USERS: " ana , bia,",
         }
     )
@@ -360,8 +320,8 @@ def test_load_config_parses_optional_users() -> None:
 
 
 def test_app_exposes_foundation_stack_with_the_planned_id() -> None:
-    app = build_app({ENV_BUDGET_EMAIL: EMAIL, ENV_GITHUB_REPOSITORY: REPOSITORY})
+    app = build_app({ENV_BUDGET_EMAIL: EMAIL})
     stack = app.node.find_child("FoundationStack")
     assert isinstance(stack, FoundationStack)
     assert stack.stack_name == "chuva-bh-foundation"
-    assert stack.region == "us-east-1"
+    assert stack.region == "us-east-2"

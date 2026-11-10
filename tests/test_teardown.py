@@ -75,6 +75,12 @@ def deployed(clients: AwsClients) -> AwsClients:
     return clients
 
 
+def create_bucket(clients: AwsClients, name: str) -> None:
+    clients.s3.create_bucket(
+        Bucket=name, CreateBucketConfiguration={"LocationConstraint": "us-east-2"}
+    )
+
+
 def policy_arn(clients: AwsClients) -> str:
     policies = clients.iam.list_policies(Scope="Local")["Policies"]
     return next(p["Arn"] for p in policies if p["PolicyName"] == POLICY_NAME)
@@ -213,7 +219,7 @@ def test_select_phases_requires_a_scope() -> None:
 
 
 def test_empty_bucket_removes_every_version_and_delete_marker(clients: AwsClients) -> None:
-    clients.s3.create_bucket(Bucket="versionado")
+    create_bucket(clients, "versionado")
     clients.s3.put_bucket_versioning(
         Bucket="versionado", VersioningConfiguration={"Status": "Enabled"}
     )
@@ -244,7 +250,7 @@ def test_empty_bucket_reports_partial_failures() -> None:
 
 
 def test_stop_trails_stops_logging_and_tolerates_missing_trail(clients: AwsClients) -> None:
-    clients.s3.create_bucket(Bucket="trail-bucket")
+    create_bucket(clients, "trail-bucket")
     clients.cloudtrail.create_trail(Name="trilha", S3BucketName="trail-bucket")
     clients.cloudtrail.start_logging(Name="trilha")
 
@@ -314,7 +320,7 @@ def test_stack_tags_propagates_unexpected_errors() -> None:
 def test_tagged_resources_outside_the_stack_are_reported(
     deployed: AwsClients, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    deployed.s3.create_bucket(Bucket="chuva-bh-orfao")
+    create_bucket(deployed, "chuva-bh-orfao")
     deployed.s3.put_bucket_tagging(
         Bucket="chuva-bh-orfao",
         Tagging={"TagSet": PROJECT_TAGS},  # type: ignore[typeddict-item]

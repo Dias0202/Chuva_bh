@@ -9,7 +9,7 @@ from constructs import IConstruct
 
 PROJECT: Final = "chuva-bh"
 OWNER: Final = "dias"
-REGION: Final = "us-east-1"
+REGION: Final = "us-east-2"
 
 
 def project_tags(phase: str) -> dict[str, str]:

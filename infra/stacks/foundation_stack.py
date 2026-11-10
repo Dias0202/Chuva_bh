@@ -1,4 +1,4 @@
-"""Fase 0: criptografia, buckets, auditoria, controle de custo e acesso do CI/CD."""
+"""Fase 0: criptografia, buckets, auditoria e controle de custo."""
 
 from __future__ import annotations
 
@@ -43,18 +43,7 @@ KILL_SWITCH_DENIED_ACTIONS: Final = (
     "sagemaker:StartPipelineExecution",
 )
 
-GITHUB_OIDC_HOST: Final = "token.actions.githubusercontent.com"
-GITHUB_OIDC_AUDIENCE: Final = "sts.amazonaws.com"
-GITHUB_DEPLOY_ROLE_NAME: Final = f"{PROJECT}-github-deploy"
-GITHUB_DEPLOY_BRANCH: Final = "main"
-
 CDK_QUALIFIER: Final = "hnb659fds"
-CDK_ASSUMABLE_ROLE_KINDS: Final = (
-    "deploy-role",
-    "file-publishing-role",
-    "image-publishing-role",
-    "lookup-role",
-)
 
 DATA_BUCKETS: Final = ("raw", "curated", "artifacts", "kb-docs")
 AUDIT_BUCKET: Final = "audit"
@@ -64,7 +53,6 @@ AUDIT_EXPIRATION_DAYS: Final = 90
 INCOMPLETE_UPLOAD_DAYS: Final = 7
 
 _EMAIL_PATTERN: Final = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_GITHUB_REPOSITORY_PATTERN: Final = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _IAM_USER_PATTERN: Final = re.compile(r"^[\w+=,.@-]{1,64}$")
 
 
@@ -73,14 +61,11 @@ class FoundationConfig:
     """Parâmetros de implantação que não ficam versionados no repositório."""
 
     budget_email: str
-    github_repository: str
     kill_switch_users: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not _EMAIL_PATTERN.fullmatch(self.budget_email):
             raise ValueError("budget_email deve ser um endereço de e-mail válido")
-        if not _GITHUB_REPOSITORY_PATTERN.fullmatch(self.github_repository):
-            raise ValueError("github_repository deve estar no formato <owner>/<repo>")
         invalid = [u for u in self.kill_switch_users if not _IAM_USER_PATTERN.fullmatch(u)]
         if invalid:
             raise ValueError(f"nomes de usuário IAM inválidos: {invalid}")
@@ -97,12 +82,10 @@ class FoundationStack(Stack):
         self.key = self._create_key()
         self.buckets = {name: self._create_bucket(name) for name in DATA_BUCKETS}
         self._create_audit_trail()
-        deploy_role = self._create_github_deploy_role(config.github_repository)
-        self._create_budget(config, deploy_role)
+        self._create_budget(config)
 
         apply_project_tags(self, PHASE)
         CfnOutput(self, "KmsKeyArn", value=self.key.key_arn)
-        CfnOutput(self, "GitHubDeployRoleArn", value=deploy_role.role_arn)
         for name, bucket in self.buckets.items():
             CfnOutput(self, f"{name.title().replace('-', '')}BucketName", value=bucket.bucket_name)
 
@@ -198,45 +181,7 @@ class FoundationStack(Stack):
     def _cdk_role_name(self, kind: str) -> str:
         return f"cdk-{CDK_QUALIFIER}-{kind}-{self.account}-{self.region}"
 
-    def _create_github_deploy_role(self, repository: str) -> iam.Role:
-        provider = iam.OidcProviderNative(
-            self,
-            "GitHubOidcProvider",
-            url=f"https://{GITHUB_OIDC_HOST}",
-            client_ids=[GITHUB_OIDC_AUDIENCE],
-        )
-        role = iam.Role(
-            self,
-            "GitHubDeployRole",
-            role_name=GITHUB_DEPLOY_ROLE_NAME,
-            description="Assumida pelo GitHub Actions para executar o CDK",
-            max_session_duration=Duration.hours(1),
-            assumed_by=iam.WebIdentityPrincipal(
-                provider.oidc_provider_arn,
-                conditions={
-                    "StringEquals": {
-                        f"{GITHUB_OIDC_HOST}:aud": GITHUB_OIDC_AUDIENCE,
-                        f"{GITHUB_OIDC_HOST}:sub": (
-                            f"repo:{repository}:ref:refs/heads/{GITHUB_DEPLOY_BRANCH}"
-                        ),
-                    }
-                },
-            ),
-        )
-        # O CDK v2 opera assumindo as roles do bootstrap, portanto isso basta.
-        role.add_to_policy(
-            iam.PolicyStatement(
-                sid="AssumeCdkBootstrapRoles",
-                actions=["sts:AssumeRole"],
-                resources=[
-                    f"arn:{self.partition}:iam::{self.account}:role/{self._cdk_role_name(kind)}"
-                    for kind in CDK_ASSUMABLE_ROLE_KINDS
-                ],
-            )
-        )
-        return role
-
-    def _create_budget(self, config: FoundationConfig, deploy_role: iam.Role) -> None:
+    def _create_budget(self, config: FoundationConfig) -> None:
         subscriber = budgets.CfnBudget.SubscriberProperty(
             address=config.budget_email, subscription_type="EMAIL"
         )
@@ -291,9 +236,9 @@ class FoundationStack(Stack):
             ],
         )
 
-        # O CloudFormation cria os recursos com a cfn-exec-role do bootstrap. Um deny
-        # apenas na role do GitHub não teria efeito sobre o que o CDK implanta.
-        target_roles = [self._cdk_role_name("cfn-exec-role"), deploy_role.role_name]
+        # O CloudFormation cria os recursos com a cfn-exec-role do bootstrap, portanto
+        # é nela que o deny precisa estar para valer sobre o que o CDK implanta.
+        target_roles = [self._cdk_role_name("cfn-exec-role")]
         execution_role = self._create_kill_switch_execution_role(
             deny_policy, target_roles, config.kill_switch_users
         )

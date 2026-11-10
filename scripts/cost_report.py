@@ -200,6 +200,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     today = datetime.now(tz=UTC).date()
     args = parse_args(argv, today)
     try:
+        # O Cost Explorer só tem endpoint em us-east-1, qualquer que seja a região do projeto.
         session = boto3.Session(profile_name=args.profile, region_name="us-east-1")
         report = build_report(session.client("ce"), today, args.start, args.end)
     except (CostReportError, ClientError, BotoCoreError) as error:
