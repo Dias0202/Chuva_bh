@@ -5,7 +5,8 @@ measure their own quality against observed rainfall and the operational forecast
 
 ## Status
 
-Phase 0 (foundation) is implemented and synthesizes locally. It has not been deployed yet.
+Phase 0 (foundation) and Phase 1 (data) are deployed to `us-east-2`. Hourly ingestion is running
+and the history is queryable in Athena.
 
 ## Requirements
 
@@ -90,3 +91,21 @@ uv run python scripts/cost_report.py                   # update docs/cost-log.md
 Teardown stops the trail, detaches the kill switch policy, empties the buckets and deletes
 the stack. It leaves the `CDKToolkit` bootstrap stack in place. Each cost report makes at
 least two Cost Explorer requests, at US$ 0.01 each.
+
+## Phase 1: data
+
+`IngestionStack` runs a Lambda every hour that stores the Open-Meteo operational forecast as raw
+JSON and partitioned Parquet, with a dead letter queue for failures. Glue tables use partition
+projection, so there is no recurring crawler, and an Athena workgroup caps each query at 1 GB.
+
+Observed rainfall comes from the yearly INMET station archives, which are published about one
+month late. See [ADR-006](docs/adr/006-ground-truth.md) for the source evaluation and its limits.
+
+```bash
+uv run python scripts/backfill.py --dry-run                         # process without writing
+uv run python scripts/backfill.py                                   # load the full history
+uv run python scripts/backfill.py --dataset observations --start-year 2026  # monthly refresh
+```
+
+Example queries are in [docs/athena-queries.md](docs/athena-queries.md), and the latest data
+quality results are in [docs/data-quality.md](docs/data-quality.md).

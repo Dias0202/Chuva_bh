@@ -7,7 +7,9 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "aws-cdk-lib==2.275.0",
     "boto3==1.43.127",
+    "botocore[crt]==1.43.127",
     "constructs==10.8.1",
+    "pyarrow==24.0.0",
 ]
 
 [dependency-groups]
@@ -18,7 +20,7 @@ dev = [
     "pytest==9.2.0",
     "pytest-cov==7.1.0",
     "ruff==0.17.4",
-    "types-boto3[ce,cloudformation,cloudtrail,iam,resourcegroupstaggingapi,s3,sts]==1.43.127",
+    "types-boto3[ce,cloudformation,cloudtrail,cloudwatch,iam,resourcegroupstaggingapi,s3,sts]==1.43.127",
 ]
 
 [tool.uv]
@@ -38,20 +40,20 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "C4", "PT"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["infra", "scripts", "tests"]
-mypy_path = ["infra", "scripts"]
+files = ["infra", "scripts", "src", "tests"]
+mypy_path = ["infra", "scripts", "src"]
 explicit_package_bases = true
 namespace_packages = true
 exclude = ["cdk\\.out"]
 
 [[tool.mypy.overrides]]
-module = ["moto", "moto.*"]
+module = ["moto", "moto.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["tests"]
-pythonpath = ["infra", "scripts"]
+pythonpath = ["infra", "scripts", "src"]
 addopts = [
     "-ra",
     "--strict-markers",
@@ -60,6 +62,7 @@ addopts = [
     "not aws",
     "--cov=infra",
     "--cov=scripts",
+    "--cov=src",
     "--cov-branch",
     "--cov-report=term-missing",
     "--cov-fail-under=80",

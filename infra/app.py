@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Final
 
 from aws_cdk import App, Environment
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from stacks.common import PROJECT, REGION
 from stacks.foundation_stack import FoundationConfig, FoundationStack
+from stacks.ingestion_stack import IngestionStack
 
 ENV_BUDGET_EMAIL: Final = "CHUVA_BUDGET_EMAIL"
 ENV_KILL_SWITCH_USERS: Final = "CHUVA_KILL_SWITCH_USERS"
@@ -35,13 +41,25 @@ def load_config(environ: Mapping[str, str]) -> FoundationConfig:
 def build_app(environ: Mapping[str, str]) -> App:
     """Monta o app com todas as stacks do projeto."""
     app = App()
-    FoundationStack(
+    env = Environment(account=environ.get("CDK_DEFAULT_ACCOUNT"), region=REGION)
+    foundation = FoundationStack(
         app,
         "FoundationStack",
         stack_name=f"{PROJECT}-foundation",
         description="chuva-bh: base de criptografia, dados, auditoria e custo",
-        env=Environment(account=environ.get("CDK_DEFAULT_ACCOUNT"), region=REGION),
+        env=env,
         config=load_config(environ),
+    )
+    IngestionStack(
+        app,
+        "IngestionStack",
+        stack_name=f"{PROJECT}-ingestion",
+        description="chuva-bh: ingestão horária, catálogo Glue e consultas Athena",
+        env=env,
+        raw_bucket=foundation.buckets["raw"],
+        curated_bucket=foundation.buckets["curated"],
+        artifacts_bucket=foundation.buckets["artifacts"],
+        key=foundation.key,
     )
     return app
 
