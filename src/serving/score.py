@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import logging
 import os
 import re
@@ -14,11 +13,11 @@ from typing import TYPE_CHECKING, Any, Final
 import boto3
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 from botocore.exceptions import BotoCoreError, ClientError
 
 from features.build import FEATURE_SETS, HORIZONS, build_dataset
 from ingestion.handler import parse_issued_at
+from ingestion.lake import read_range
 from ingestion.points import POINT_IDS
 from serving.store import ModelConfig, parse_model_config, prediction_item
 
@@ -48,37 +47,13 @@ class ScoreResult:
     failed: tuple[str, ...]
 
 
-def _partition(dataset: str, moment: datetime, point_id: str) -> str:
-    return f"{dataset}/year={moment.year:04d}/month={moment.month:02d}/point_id={point_id}/"
-
-
-def _read_objects(s3: S3Client, bucket: str, keys: Iterable[str]) -> pd.DataFrame:
-    frames = []
-    for key in keys:
-        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-        frames.append(pq.read_table(io.BytesIO(body)).to_pandas())  # type: ignore[no-untyped-call]
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
-
-def _list(s3: S3Client, bucket: str, prefix: str) -> list[str]:
-    paginator = s3.get_paginator("list_objects_v2")
-    return [
-        item["Key"]
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix)
-        for item in page.get("Contents", [])
-    ]
-
-
 def load_observations(
     s3: S3Client, bucket: str, point_id: str, issued_at: datetime
 ) -> pd.DataFrame:
     start = issued_at - timedelta(hours=LOOKBACK_HOURS)
-    prefixes = {_partition("observations", m, point_id) for m in (start, issued_at)}
-    keys = [k for prefix in sorted(prefixes) for k in _list(s3, bucket, prefix)]
-    frame = _read_objects(s3, bucket, keys)
+    frame = read_range(s3, bucket, "observations", point_id, start, issued_at)
     if frame.empty:
         return frame
-    frame["point_id"] = point_id
     window = (frame["observed_at"] >= start) & (frame["observed_at"] <= issued_at)
     return frame[window]
 
@@ -86,12 +61,9 @@ def load_observations(
 def load_forecast(s3: S3Client, bucket: str, point_id: str, issued_at: datetime) -> pd.DataFrame:
     name = f"issued-{issued_at:%Y%m%dT%H}.parquet"
     last = issued_at + timedelta(hours=max(HORIZONS))
-    prefixes = sorted({_partition("forecasts", m, point_id) for m in (issued_at, last)})
-    keys = [k for prefix in prefixes for k in _list(s3, bucket, prefix) if k.endswith(name)]
-    frame = _read_objects(s3, bucket, keys)
-    if not frame.empty:
-        frame["point_id"] = point_id
-    return frame
+    return read_range(
+        s3, bucket, "forecasts", point_id, issued_at, last, keep=lambda key: key.endswith(name)
+    )
 
 
 def feature_rows(

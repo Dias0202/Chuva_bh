@@ -17,6 +17,7 @@ from stacks.foundation_stack import FoundationConfig, FoundationStack
 from stacks.genai_stack import GenAiStack
 from stacks.ingestion_stack import IngestionStack
 from stacks.ml_stack import MlStack
+from stacks.observability_stack import ObservabilityStack
 from stacks.serving_stack import ServingStack
 
 ENV_BUDGET_EMAIL: Final = "CHUVA_BUDGET_EMAIL"
@@ -45,13 +46,14 @@ def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = No
     """Monta o app com todas as stacks do projeto."""
     app = App(context=dict(context) if context else None)
     env = Environment(account=environ.get("CDK_DEFAULT_ACCOUNT"), region=REGION)
+    config = load_config(environ)
     foundation = FoundationStack(
         app,
         "FoundationStack",
         stack_name=f"{PROJECT}-foundation",
         description="chuva-bh: base de criptografia, dados, auditoria e custo",
         env=env,
-        config=load_config(environ),
+        config=config,
     )
     IngestionStack(
         app,
@@ -94,6 +96,18 @@ def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = No
         key=foundation.key,
         api=serving.api,
         chunking=app.node.try_get_context("kb_chunking") or "fixed",
+    )
+    ObservabilityStack(
+        app,
+        "ObservabilityStack",
+        stack_name=f"{PROJECT}-observability",
+        description="chuva-bh: qualidade, drift, dashboard, alarmes e retreino",
+        env=env,
+        curated_bucket=foundation.buckets["curated"],
+        artifacts_bucket=foundation.buckets["artifacts"],
+        table=serving.table,
+        api=serving.api,
+        alert_email=config.budget_email,
     )
     return app
 

@@ -6,8 +6,8 @@ measure their own quality against observed rainfall and the operational forecast
 ## Status
 
 Phase 0 (foundation) and Phase 1 (data) are deployed to `us-east-2`. Hourly ingestion is running
-and the history is queryable in Athena. Phases 2 (model), 3 (serving) and 4 (agent) are
-implemented and tested as code, and their AWS resources have not been created.
+and the history is queryable in Athena. Phases 2 (model), 3 (serving), 4 (agent) and 5
+(operations) are implemented and tested as code, and their AWS resources have not been created.
 
 ## Requirements
 
@@ -165,3 +165,23 @@ uv run python eval/run_eval.py                      # golden set, with LLM-as-a-
 The golden set has 36 cases. The targets are 85% tool accuracy and 0.8 faithfulness. Deployment
 risks, including the account SCP and cross-region inference, are in
 [ADR-011](docs/adr/011-agente.md).
+
+## Phase 5: operations
+
+Every hour, a quality Lambda joins issued forecasts with observed rainfall and publishes the
+Brier score of the model and of a calibrated persistence baseline over 7 and 30 days. Every day,
+a drift Lambda computes the PSI of each observed feature against the training period. A
+CloudWatch dashboard shows ingestion, quality, drift, API latency and agent tokens. Alarms email
+the alert address, and the quality alarm starts the training pipeline, with manual approval
+kept. See [ADR-012](docs/adr/012-operacao.md).
+
+```bash
+uv run python scripts/model_monitor_exercise.py export-baseline
+uv run python scripts/model_monitor_exercise.py create --model-package-arn ARN --baseline-csv S3_URI
+uv run python scripts/model_monitor_exercise.py traffic --endpoint NAME
+uv run python scripts/model_monitor_exercise.py cleanup --endpoint NAME
+uv run python scripts/ttl_sweeper.py --yes        # deletes anything whose TTL tag has expired
+```
+
+Audit queries for model approvals and deployments are in
+[docs/cloudtrail-audit.md](docs/cloudtrail-audit.md).

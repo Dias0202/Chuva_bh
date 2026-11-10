@@ -62,6 +62,11 @@ exclude = ["cdk\\.out"]
 module = ["moto", "moto.*", "pandas", "pandas.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
+# Script que só orquestra o Model Monitor, cuja API no SDK não tem anotações de tipo.
+[[tool.mypy.overrides]]
+module = ["model_monitor_exercise"]
+disallow_untyped_calls = false
+
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["tests"]
