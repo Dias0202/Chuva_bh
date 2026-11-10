@@ -54,6 +54,8 @@ INCOMPLETE_UPLOAD_DAYS: Final = 7
 
 _EMAIL_PATTERN: Final = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _IAM_USER_PATTERN: Final = re.compile(r"^[\w+=,.@-]{1,64}$")
+# Nome de role com caminho opcional, como "managed/AccountFullAccessRole".
+_IAM_ROLE_PATTERN: Final = re.compile(r"^([\w+=,.@-]+/)*[\w+=,.@-]{1,64}$")
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,7 @@ class FoundationConfig:
 
     budget_email: str
     kill_switch_users: tuple[str, ...] = ()
+    kill_switch_roles: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not _EMAIL_PATTERN.fullmatch(self.budget_email):
@@ -69,6 +72,9 @@ class FoundationConfig:
         invalid = [u for u in self.kill_switch_users if not _IAM_USER_PATTERN.fullmatch(u)]
         if invalid:
             raise ValueError(f"nomes de usuário IAM inválidos: {invalid}")
+        invalid = [r for r in self.kill_switch_roles if not _IAM_ROLE_PATTERN.fullmatch(r)]
+        if invalid:
+            raise ValueError(f"nomes de role IAM inválidos: {invalid}")
 
 
 class FoundationStack(Stack):
@@ -237,10 +243,13 @@ class FoundationStack(Stack):
         )
 
         # O CloudFormation cria os recursos com a cfn-exec-role do bootstrap, portanto
-        # é nela que o deny precisa estar para valer sobre o que o CDK implanta.
-        target_roles = [self._cdk_role_name("cfn-exec-role")]
+        # é nela que o deny precisa estar para valer sobre o que o CDK implanta. Roles extras
+        # cobrem o que é criado fora do CDK, como os jobs iniciados por script.
+        role_paths = [self._cdk_role_name("cfn-exec-role"), *config.kill_switch_roles]
+        # O Budget Action recebe só o nome; o ARN da permissão precisa do caminho da role.
+        target_roles = [path.rsplit("/", 1)[-1] for path in role_paths]
         execution_role = self._create_kill_switch_execution_role(
-            deny_policy, target_roles, config.kill_switch_users
+            deny_policy, role_paths, config.kill_switch_users
         )
 
         action = budgets.CfnBudgetsAction(
@@ -276,7 +285,7 @@ class FoundationStack(Stack):
     def _create_kill_switch_execution_role(
         self,
         deny_policy: iam.ManagedPolicy,
-        target_roles: list[str],
+        role_paths: list[str],
         target_users: tuple[str, ...],
     ) -> iam.Role:
         role = iam.Role(
@@ -294,7 +303,7 @@ class FoundationStack(Stack):
                 sid="ManageDenyPolicyOnRoles",
                 actions=["iam:AttachRolePolicy", "iam:DetachRolePolicy"],
                 resources=[
-                    f"arn:{self.partition}:iam::{self.account}:role/{name}" for name in target_roles
+                    f"arn:{self.partition}:iam::{self.account}:role/{path}" for path in role_paths
                 ],
                 conditions=only_deny_policy,
             )

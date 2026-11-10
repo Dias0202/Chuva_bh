@@ -20,9 +20,12 @@ ISOLATION_AZS: Final = ("us-east-2a", "us-east-2b")
 SAGEMAKER_JOB_ACTIONS: Final = (
     "sagemaker:AddTags",
     "sagemaker:CreateModelPackage",
+    # O passo de registro do pipeline tenta criar o grupo mesmo quando ele já existe.
+    "sagemaker:CreateModelPackageGroup",
     "sagemaker:CreateProcessingJob",
     "sagemaker:CreateTrainingJob",
     "sagemaker:DescribeModelPackage",
+    "sagemaker:DescribeModelPackageGroup",
     "sagemaker:DescribeProcessingJob",
     "sagemaker:DescribeTrainingJob",
     "sagemaker:ListTags",

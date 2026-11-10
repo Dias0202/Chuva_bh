@@ -58,7 +58,8 @@ FEATURE_SETS = {
 def _regular(group: pd.DataFrame, time_column: str) -> pd.DataFrame:
     """Indexa por hora, sem lacunas no índice: horas ausentes viram NaN."""
     frame = group.sort_values(time_column).drop_duplicates(time_column, keep="last")
-    return frame.set_index(time_column).asfreq("h")
+    # Objeto de offset em vez de alias em texto: o alias de hora mudou entre versões do pandas.
+    return frame.set_index(time_column).asfreq(pd.offsets.Hour())
 
 
 def observation_features(observations: pd.DataFrame) -> pd.DataFrame:
@@ -162,8 +163,10 @@ def build_dataset(
 ) -> pd.DataFrame:
     """Uma linha por ponto, instante de emissão e horizonte."""
     base = observation_features(observations)
-    grid = pd.DataFrame({"horizon_h": list(horizons)})
-    rows = base.merge(grid, how="cross")
+    # Produto cartesiano por chave constante: `how="cross"` não existe no pandas antigo
+    # dos containers do SageMaker.
+    grid = pd.DataFrame({"horizon_h": list(horizons), "_join": 0})
+    rows = base.assign(_join=0).merge(grid, on="_join").drop(columns="_join")
     rows = pd.concat([rows, calendar_features(rows["issued_at"])], axis=1)
 
     keys = list(KEY_COLUMNS)

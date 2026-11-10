@@ -14,7 +14,7 @@ future in the historical data, the gain is 2.8%. See the [model card](docs/model
 |---|---|---|
 | 0 | KMS, buckets, CloudTrail, budget and kill switch | Deployed |
 | 1 | Hourly ingestion, Parquet lake, Glue and Athena, 7 years of history | Deployed |
-| 2 | Features, baselines, SageMaker pipeline, tuning, Clarify | Code and tests; trained locally |
+| 2 | Features, baselines, SageMaker pipeline, tuning, Clarify | Deployed; pipeline run and model v1 registered, pending approval |
 | 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Code and tests |
 | 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Code and tests |
 | 5 | Quality and drift monitoring, dashboard, alarms, retraining | Code and tests |
@@ -64,6 +64,7 @@ Deployment settings are read from the environment and are never stored in Git. S
 |---|---|---|
 | `CHUVA_BUDGET_EMAIL` | yes | Receives budget alerts and kill switch notifications |
 | `CHUVA_KILL_SWITCH_USERS` | no | Comma-separated IAM users that also receive the deny policy |
+| `CHUVA_KILL_SWITCH_ROLES` | no | Comma-separated IAM roles, with path, that also receive it. Set it on every deploy, or the roles drop out of the kill switch |
 
 ## Checks
 
@@ -95,8 +96,9 @@ Design notes:
 - The budget accumulates from 2026-11-01 instead of resetting monthly, because the limit
   applies to the whole project.
 - The kill switch targets the CDK CloudFormation execution role, which is the identity that
-  actually creates resources. It stops new resources only: running workloads keep running,
-  and billing data can lag by several hours.
+  creates stack resources, plus the roles in `CHUVA_KILL_SWITCH_ROLES`, such as the login role
+  that starts SageMaker jobs from scripts. It stops new resources only: running workloads keep
+  running, and billing data can lag by several hours.
 - Deployments run from a workstation for now, so there is no GitHub Actions deploy role.
 
 ### Deployment

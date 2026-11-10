@@ -40,8 +40,8 @@ alertas da Defesa Civil nem os avisos do INMET.
 Por horizonte, o modelo com todas as features tem Brier de 0,0180 em 1 h, 0,0224 em 3 h e
 0,0229 em 6 h, sempre abaixo das duas referências. Detalhes em `docs/evaluation.md`.
 
-Os números vêm do treino local (`scripts/train_local.py`). O pipeline do SageMaker usa o mesmo
-código, mas ainda não foi executado.
+O pipeline do SageMaker reproduziu esses números em 2026-11-10 (Brier 0,0211, PR-AUC 0,371) e
+registrou a versão 1 no grupo `chuva-bh-rain`, pendente de aprovação manual.
 
 ## Limitações e vieses
 

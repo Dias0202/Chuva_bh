@@ -9,6 +9,7 @@ import pytest
 import teardown
 from app import (
     ENV_BUDGET_EMAIL,
+    ENV_KILL_SWITCH_ROLES,
     ENV_KILL_SWITCH_USERS,
     build_app,
     load_config,
@@ -248,6 +249,19 @@ def test_kill_switch_can_include_extra_iam_users() -> None:
     assert "ManageDenyPolicyOnUsers" in sids
 
 
+def test_kill_switch_can_include_roles_with_a_path() -> None:
+    template = synth(kill_switch_roles=("managed/AccountFullAccessRole",))
+    action = single_properties(template, "AWS::Budgets::BudgetsAction")
+    assert action["Definition"]["IamActionDefinition"]["Roles"] == [
+        f"cdk-hnb659fds-cfn-exec-role-{ACCOUNT}-us-east-2",
+        "AccountFullAccessRole",
+    ]
+    statement = next(
+        s for _, s in iam_statements(template) if s.get("Sid") == "ManageDenyPolicyOnRoles"
+    )
+    assert f"{ACCOUNT}:role/managed/AccountFullAccessRole" in str(statement["Resource"])
+
+
 def test_kill_switch_omits_users_by_default(template: Template) -> None:
     action = single_properties(template, "AWS::Budgets::BudgetsAction")
     assert "Users" not in action["Definition"]["IamActionDefinition"]
@@ -297,6 +311,8 @@ def test_teardown_operates_in_the_same_region_as_the_stacks() -> None:
         {"budget_email": "invalido"},
         {"budget_email": "a b@example.invalid"},
         {"kill_switch_users": ("usuario invalido",)},
+        {"kill_switch_roles": ("role invalida",)},
+        {"kill_switch_roles": ("/managed/role",)},
     ],
 )
 def test_config_rejects_invalid_values(overrides: dict[str, Any]) -> None:
@@ -315,9 +331,11 @@ def test_load_config_parses_optional_users() -> None:
         {
             ENV_BUDGET_EMAIL: EMAIL,
             ENV_KILL_SWITCH_USERS: " ana , bia,",
+            ENV_KILL_SWITCH_ROLES: "managed/AccountFullAccessRole",
         }
     )
     assert config.kill_switch_users == ("ana", "bia")
+    assert config.kill_switch_roles == ("managed/AccountFullAccessRole",)
 
 
 def test_app_exposes_foundation_stack_with_the_planned_id() -> None:

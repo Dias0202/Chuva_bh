@@ -22,6 +22,11 @@ from stacks.serving_stack import ServingStack
 
 ENV_BUDGET_EMAIL: Final = "CHUVA_BUDGET_EMAIL"
 ENV_KILL_SWITCH_USERS: Final = "CHUVA_KILL_SWITCH_USERS"
+ENV_KILL_SWITCH_ROLES: Final = "CHUVA_KILL_SWITCH_ROLES"
+
+
+def _split(value: str) -> tuple[str, ...]:
+    return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
 def load_config(environ: Mapping[str, str]) -> FoundationConfig:
@@ -33,12 +38,10 @@ def load_config(environ: Mapping[str, str]) -> FoundationConfig:
     if not environ.get(ENV_BUDGET_EMAIL):
         raise SystemExit(f"Variável de ambiente obrigatória ausente: {ENV_BUDGET_EMAIL}")
 
-    users = tuple(
-        user.strip() for user in environ.get(ENV_KILL_SWITCH_USERS, "").split(",") if user.strip()
-    )
     return FoundationConfig(
         budget_email=environ[ENV_BUDGET_EMAIL],
-        kill_switch_users=users,
+        kill_switch_users=_split(environ.get(ENV_KILL_SWITCH_USERS, "")),
+        kill_switch_roles=_split(environ.get(ENV_KILL_SWITCH_ROLES, "")),
     )
 
 
