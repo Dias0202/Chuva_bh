@@ -48,5 +48,7 @@ e precisa ser confirmada antes de redistribuir dados derivados.
   no início da série (ao menos até meados de 2022). A série junta as primeiras horas de rodadas
   sucessivas, então representa horizontes curtos. O baseline histórico usa a precipitação prevista,
   e os horizontes de 3 h e 6 h precisam dessa ressalva no model card.
-- Para o ciclo fechado em tempo quase real, a saída é pedir a chave ao INMET. O METAR de SBBH é
+- Para o ciclo fechado em tempo quase real, a saída é a chave da API do INMET, solicitada por
+  e-mail em 2026-11-10 e ainda sem resposta. Quando chegar, ela fica no SSM Parameter Store como
+  SecureString em `/chuva-bh/inmet-token`. O METAR de SBBH é
   uma alternativa parcial: indica se choveu, sem o volume e só para a Pampulha.
