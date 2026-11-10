@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from stacks.common import PROJECT, REGION
 from stacks.foundation_stack import FoundationConfig, FoundationStack
 from stacks.ingestion_stack import IngestionStack
+from stacks.ml_stack import MlStack
 
 ENV_BUDGET_EMAIL: Final = "CHUVA_BUDGET_EMAIL"
 ENV_KILL_SWITCH_USERS: Final = "CHUVA_KILL_SWITCH_USERS"
@@ -60,6 +61,17 @@ def build_app(environ: Mapping[str, str]) -> App:
         curated_bucket=foundation.buckets["curated"],
         artifacts_bucket=foundation.buckets["artifacts"],
         key=foundation.key,
+    )
+    MlStack(
+        app,
+        "MlStack",
+        stack_name=f"{PROJECT}-ml",
+        description="chuva-bh: role do SageMaker, Model Registry e rede isolada opcional",
+        env=env,
+        curated_bucket=foundation.buckets["curated"],
+        artifacts_bucket=foundation.buckets["artifacts"],
+        key=foundation.key,
+        isolation=app.node.try_get_context("isolation") == "true",
     )
     return app
 

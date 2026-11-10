@@ -6,7 +6,8 @@ measure their own quality against observed rainfall and the operational forecast
 ## Status
 
 Phase 0 (foundation) and Phase 1 (data) are deployed to `us-east-2`. Hourly ingestion is running
-and the history is queryable in Athena.
+and the history is queryable in Athena. Phase 2 (model) is implemented and tested as code, and
+its AWS resources have not been created.
 
 ## Requirements
 
@@ -109,3 +110,27 @@ uv run python scripts/backfill.py --dataset observations --start-year 2026  # mo
 
 Example queries are in [docs/athena-queries.md](docs/athena-queries.md), and the latest data
 quality results are in [docs/data-quality.md](docs/data-quality.md).
+
+## Phase 2: model
+
+Features are pure pandas functions in `src/features`, shared by training and scoring. The model is
+XGBoost, compared with two baselines calibrated on the training years: persistence and the
+Open-Meteo forecast. The split is temporal: train through 2023, validate on 2024, test on 2025.
+
+On the 2025 test set, a local run of `scripts/train_local.py` gave a Brier score 11.8% better than
+the best baseline, or 2.8% better without forecast features. Forecast features from the
+historical API leak part of the future, so the first number is optimistic
+([ADR-009](docs/adr/009-vazamento-na-previsao-historica.md)). Details are in
+[docs/evaluation.md](docs/evaluation.md).
+
+`MlStack` holds the SageMaker execution role and the Model Registry group. The pipeline runs
+Processing, Spot training, evaluation against the baselines, a condition on the Brier score and
+registration pending manual approval. It is created by a script, not by CloudFormation:
+
+```bash
+uv run python scripts/train_local.py                    # local experiment, reads S3 only
+uv run python scripts/sagemaker_jobs.py upsert          # create or update the pipeline
+uv run python scripts/sagemaker_jobs.py start           # run it
+uv run python scripts/sagemaker_jobs.py tune --train S3_URI --validation S3_URI
+uv run python scripts/sagemaker_jobs.py clarify --model-package-arn ARN --test S3_URI
+```

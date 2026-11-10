@@ -9,6 +9,7 @@ dependencies = [
     "boto3==1.43.127",
     "botocore[crt]==1.43.127",
     "constructs==10.8.1",
+    "pandas==3.1.0",
     "pyarrow==24.0.0",
 ]
 
@@ -22,9 +23,14 @@ dev = [
     "ruff==0.17.4",
     "types-boto3[ce,cloudformation,cloudtrail,cloudwatch,iam,resourcegroupstaggingapi,s3,sts]==1.43.127",
 ]
+ml = [
+    "sagemaker==2.257.7",
+    "xgboost==3.4.1",
+]
 
 [tool.uv]
 package = false
+default-groups = ["dev", "ml"]
 
 [tool.ruff]
 target-version = "py312"
@@ -47,7 +53,7 @@ namespace_packages = true
 exclude = ["cdk\\.out"]
 
 [[tool.mypy.overrides]]
-module = ["moto", "moto.*", "pyarrow", "pyarrow.*"]
+module = ["moto", "moto.*", "pandas", "pandas.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
