@@ -211,7 +211,7 @@ def test_all_removes_every_phase_including_foundation(deployed: AwsClients) -> N
 
 
 def test_all_phases_are_processed_from_last_to_first() -> None:
-    assert teardown.select_phases(None, all_phases=True) == [5, 4, 3, 2, 1, 0]
+    assert teardown.select_phases(None, all_phases=True) == [6, 5, 4, 3, 2, 1, 0]
 
 
 def test_select_phases_requires_a_scope() -> None:

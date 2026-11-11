@@ -96,7 +96,7 @@ class FoundationStack(Stack):
             CfnOutput(self, f"{name.title().replace('-', '')}BucketName", value=bucket.bucket_name)
 
     def _create_key(self) -> kms.Key:
-        return kms.Key(
+        key = kms.Key(
             self,
             "ProjectKey",
             alias=f"alias/{PROJECT}",
@@ -105,6 +105,24 @@ class FoundationStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
             pending_window=Duration.days(7),
         )
+        # O CloudFront do site (WebStack) lê o bucket com OAC. A distribuição é de outra stack,
+        # então a condição cobre as distribuições desta conta em vez de um ARN fixo.
+        key.add_to_resource_policy(
+            iam.PolicyStatement(
+                sid="AllowCloudFrontReadSite",
+                principals=[iam.ServicePrincipal("cloudfront.amazonaws.com")],
+                actions=["kms:Decrypt"],
+                resources=["*"],
+                conditions={
+                    "StringLike": {
+                        "aws:SourceArn": (
+                            f"arn:{self.partition}:cloudfront::{self.account}:distribution/*"
+                        )
+                    }
+                },
+            )
+        )
+        return key
 
     def _create_bucket(
         self, name: str, lifecycle_rules: list[s3.LifecycleRule] | None = None

@@ -72,6 +72,7 @@ class GenAiStack(Stack):
         CfnOutput(self, "GuardrailVersion", value=guardrail_version.attr_version)
         CfnOutput(self, "PromptId", value=prompt.attr_id)
         CfnOutput(self, "PromptVersion", value=prompt_version.attr_version)
+        self.agent_runtime_arn = runtime.attr_agent_runtime_arn
         CfnOutput(self, "AgentRuntimeArn", value=runtime.attr_agent_runtime_arn)
 
     def _arn(self, service: str, resource: str, region: str | None = None) -> str:

@@ -43,6 +43,7 @@ PHASE_STACKS: Final[dict[int, str]] = {
     3: f"{PROJECT}-serving",
     4: f"{PROJECT}-genai",
     5: f"{PROJECT}-observability",
+    6: f"{PROJECT}-web",
 }
 FOUNDATION_PHASE: Final = 0
 

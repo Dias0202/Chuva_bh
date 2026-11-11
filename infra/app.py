@@ -19,6 +19,7 @@ from stacks.ingestion_stack import IngestionStack
 from stacks.ml_stack import MlStack
 from stacks.observability_stack import ObservabilityStack
 from stacks.serving_stack import ServingStack
+from stacks.web_stack import WebStack
 
 ENV_BUDGET_EMAIL: Final = "CHUVA_BUDGET_EMAIL"
 ENV_KILL_SWITCH_USERS: Final = "CHUVA_KILL_SWITCH_USERS"
@@ -89,7 +90,7 @@ def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = No
         curated_bucket=foundation.buckets["curated"],
         sagemaker_role=ml.role,
     )
-    GenAiStack(
+    genai = GenAiStack(
         app,
         "GenAiStack",
         stack_name=f"{PROJECT}-genai",
@@ -111,6 +112,16 @@ def build_app(environ: Mapping[str, str], context: Mapping[str, Any] | None = No
         table=serving.table,
         api=serving.api,
         alert_email=config.budget_email,
+    )
+    WebStack(
+        app,
+        "WebStack",
+        stack_name=f"{PROJECT}-web",
+        description="chuva-bh: site com previsões públicas e chat com login",
+        env=env,
+        key=foundation.key,
+        table=serving.table,
+        agent_runtime_arn=genai.agent_runtime_arn,
     )
     return app
 
