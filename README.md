@@ -15,12 +15,14 @@ future in the historical data, the gain is 2.8%. See the [model card](docs/model
 | 0 | KMS, buckets, CloudTrail, budget and kill switch | Deployed |
 | 1 | Hourly ingestion, Parquet lake, Glue and Athena, 7 years of history | Deployed |
 | 2 | Features, baselines, SageMaker pipeline, tuning, SHAP | Deployed; pipeline run and model v1 registered, pending approval |
-| 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Deployed; model v1 serving, scoring waits for the INMET token |
+| 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Deployed; METAR model v3 forecasts Pampulha every hour |
 | 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Deployed; 89% tool accuracy, 0.96 faithfulness |
 | 5 | Quality and drift monitoring, dashboard, alarms, retraining | Deployed; alarm and retraining tested end to end |
 
-Live scoring and monitoring need the hourly observation from the INMET API, whose access token
-has been requested. Until then, observed rainfall arrives about one month late.
+Live forecasts run every hour for Pampulha in METAR mode, which uses the airport's public
+weather reports instead of the INMET API ([ADR-013](docs/adr/013-modo-metar.md)). The other
+three points need the INMET API token, which has been requested. Observed rainfall for quality
+monitoring still arrives about one month late.
 
 Architecture and request flow: [docs/architecture.md](docs/architecture.md). Decisions:
 [docs/adr](docs/adr/README.md). Exam mapping: [docs/exam-mapping.md](docs/exam-mapping.md).

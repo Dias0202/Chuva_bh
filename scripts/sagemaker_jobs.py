@@ -3,7 +3,7 @@
 
 Uso:
     sagemaker_jobs.py upsert                       cria ou atualiza o pipeline
-    sagemaker_jobs.py start                        inicia uma execução do pipeline
+    sagemaker_jobs.py start [--feature-set metar]  inicia uma execução do pipeline
     sagemaker_jobs.py tune --train S3 --validation S3
     sagemaker_jobs.py isolated-train --train S3 --validation S3
 
@@ -24,7 +24,8 @@ from botocore.exceptions import BotoCoreError, ClientError
 ROOT: Final = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from training.config import HYPERPARAMETERS  # noqa: E402
+from features.build import FEATURE_SETS  # noqa: E402
+from training.config import DEFAULT_FEATURE_SET, HYPERPARAMETERS  # noqa: E402
 
 REGION: Final = "us-east-2"
 PROJECT: Final = "chuva-bh"
@@ -95,7 +96,7 @@ def _channels(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def upsert(ctx: dict[str, Any], start: bool) -> None:
+def upsert(ctx: dict[str, Any], start: bool, feature_set: str = DEFAULT_FEATURE_SET) -> None:
     from training.pipeline import TAGS, PipelineSettings, build_pipeline
 
     settings = PipelineSettings(
@@ -109,7 +110,7 @@ def upsert(ctx: dict[str, Any], start: bool) -> None:
     pipeline.upsert(role_arn=ctx["role"], tags=TAGS)
     print(f"Pipeline {pipeline.name} atualizado")
     if start:
-        execution = pipeline.start()
+        execution = pipeline.start(parameters={"FeatureSet": feature_set})
         print(f"Execução iniciada: {execution.arn}")
 
 
@@ -157,7 +158,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--profile")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("upsert")
-    sub.add_parser("start")
+    p = sub.add_parser("start")
+    p.add_argument("--feature-set", choices=sorted(FEATURE_SETS), default=DEFAULT_FEATURE_SET)
     for name in ("tune", "isolated-train"):
         p = sub.add_parser(name)
         p.add_argument("--train", required=True)
@@ -167,7 +169,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         ctx = _context(args.profile)
         if args.command in ("upsert", "start"):
-            upsert(ctx, start=args.command == "start")
+            upsert(
+                ctx,
+                start=args.command == "start",
+                feature_set=getattr(args, "feature_set", DEFAULT_FEATURE_SET),
+            )
         elif args.command == "tune":
             tune(ctx, args)
         else:

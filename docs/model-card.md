@@ -43,6 +43,15 @@ Por horizonte, o modelo com todas as features tem Brier de 0,0180 em 1 h, 0,0224
 O pipeline do SageMaker reproduziu esses números em 2026-11-10 (Brier 0,0211, PR-AUC 0,371) e
 registrou a versão 1 no grupo `chuva-bh-rain`, pendente de aprovação manual.
 
+## Modo METAR (versão 3, em produção)
+
+Sem a chave da API do INMET, o modelo em produção usa o METAR do aeroporto da Pampulha no
+lugar da observação da estação: temperatura, umidade, pressão, vento, teto de nuvens e se está
+chovendo, mais a previsão numérica. Ele só cobre o ponto A521. No teste de 2025, teve Brier de
+0,0225 (11,3% melhor que a melhor baseline) e PR-AUC de 0,357, perto do modelo completo. O
+aeroporto não emite METAR de madrugada, e nessas horas o modelo depende da previsão numérica
+(ADR-013).
+
 ## Tuning
 
 Um tuning Bayesiano com 10 jobs Spot (2 em paralelo) chegou a logloss de validação de 0,08753,

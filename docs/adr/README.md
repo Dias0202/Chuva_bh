@@ -16,3 +16,4 @@ As decisões 001 a 005 e 007 são curtas e ficam registradas aqui; as demais tê
 | [010](010-serving.md) | Deploy do endpoint na aprovação, API com IAM, empacotamento com uv | Sem deploy de stack por modelo, sem API pública e sem Docker | Endpoint no CloudFormation |
 | [011](011-agente.md) | Agente LangGraph no AgentCore Runtime, com código em zip | Ferramentas só de leitura e sem imagem de contêiner | Bedrock Agents; contêiner no ECR |
 | [012](012-operacao.md) | Qualidade e drift com referência calculada dos dados e retreino por alarme | Independe dos artefatos de treino e mantém o custo baixo | Model Monitor permanente |
+| [013](013-modo-metar.md) | Modo METAR para previsão ao vivo na Pampulha | Fonte pública e horária enquanto a chave do INMET não chega | Esperar a chave; satélite |
