@@ -23,6 +23,5 @@ valor absoluto, mais a feature move a probabilidade prevista.
 | `wind_gust_ms` | 0.0665 | 0.0632 |
 | `wind_dir_sin` | 0.0566 | 0.0398 |
 
-O Clarify do SageMaker foi o plano original, mas o processing dele está em modo de
-manutenção para contas novas. O TreeSHAP calcula os mesmos valores de Shapley sem
-amostragem, porque usa a estrutura das árvores.
+O TreeSHAP usa a estrutura das árvores e calcula os valores de Shapley exatos, sem
+amostragem e sem precisar de um endpoint.

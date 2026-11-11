@@ -44,6 +44,5 @@ aws cloudtrail lookup-events --region us-east-1 \
   --query 'Events[].{quando:EventTime,quem:Username,evento:CloudTrailEvent}'
 ```
 
-Eventos do IAM são globais e ficam registrados em us-east-1. A SCP da conta nega chamadas a
-essa região, então esta consulta pode precisar ser feita pelo console ou pelos arquivos da trail
-no bucket `audit`.
+Eventos do IAM são globais e ficam registrados em us-east-1. Se essa região não estiver
+acessível para a sua identidade, consulte os arquivos da trail no bucket `audit`.

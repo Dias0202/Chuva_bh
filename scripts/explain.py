@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """Explicabilidade do modelo registrado com TreeSHAP nativo do XGBoost.
 
-Substitui o job do Clarify, que está em modo de manutenção para contas novas. Baixa o
-artefato do pacote do Model Registry e o conjunto de teste do pipeline, calcula as
+Baixa o artefato do pacote do Model Registry e o conjunto de teste do pipeline, calcula as
 contribuições SHAP exatas das árvores e grava docs/explainability.md.
 
 Uso:
@@ -128,9 +127,8 @@ def render(overall: pd.Series, rainy: pd.Series, version: str, rows: int) -> str
         lines.append(f"| `{feature}` | {overall[feature]:.4f} | {rainy[feature]:.4f} |")
     lines += [
         "",
-        "O Clarify do SageMaker foi o plano original, mas o processing dele está em modo de",
-        "manutenção para contas novas. O TreeSHAP calcula os mesmos valores de Shapley sem",
-        "amostragem, porque usa a estrutura das árvores.",
+        "O TreeSHAP usa a estrutura das árvores e calcula os valores de Shapley exatos, sem",
+        "amostragem e sem precisar de um endpoint.",
     ]
     return "\n".join(lines) + "\n"
 

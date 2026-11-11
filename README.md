@@ -1,80 +1,267 @@
 # chuva-bh
 
-Rain nowcasting for Belo Horizonte on AWS: an MLOps platform and a GenAI agent that
-measure their own quality against observed rainfall and the operational forecast.
+Previsão de chuva para as próximas horas em Belo Horizonte, ponto a ponto, com uma
+probabilidade que se pode levar a sério: cada número é conferido depois contra o que o
+pluviômetro mediu.
 
-**Result:** on the 2025 test year, the model's Brier score is 11.8% better than the best
-baseline (calibrated persistence) for rain of at least 0.5 mm in the next 1 to 6 hours, and
-PR-AUC goes from 0.16 to 0.37. Without numerical forecast features, which partly leak the
-future in the historical data, the gain is 2.8%. See the [model card](docs/model-card.md).
+**Site:** https://d1jy1a0ip4ajks.cloudfront.net
 
-## Status
+## Para que serve
 
-| Phase | Scope | State |
+A previsão do tempo comum responde bem a "vai chover amanhã?". Para decisões de curto prazo,
+como sair agora de bicicleta, cobrir uma obra, adiar um evento ao ar livre ou mudar uma rota
+de entrega, ela diz pouco: fala de um dia inteiro e de uma cidade inteira.
+
+O chuva-bh responde a uma pergunta mais estreita e mais útil nessas horas:
+
+> Qual a chance de chover pelo menos 0,5 mm neste ponto, nesta hora, daqui a 1, 3 ou 6 horas?
+
+Para isso ele combina três fontes. A estação meteorológica dá o estado do tempo agora. O
+aeroporto informa se já está chovendo ou trovejando. A previsão numérica mostra para onde a
+atmosfera caminha. Um modelo treinado com o histórico local desde 2021 junta essas fontes em
+uma probabilidade calibrada. Quando o modelo diz 30%, choveu em cerca de 3 de cada 10
+situações parecidas.
+
+Três pontos fazem o sistema confiável:
+
+- **Ele mede a si mesmo.** Toda previsão emitida é comparada com a chuva observada e com uma
+  referência simples, a persistência. Se o modelo ficar pior que ela por uma semana, um alarme
+  dispara e um novo treino começa sozinho.
+- **Ele é honesto sobre a incerteza.** Uma probabilidade de 2% numa manhã seca de novembro e
+  uma de 60% numa tarde de convecção são tratadas como o que são, sem virar "sol" ou "chuva".
+- **Ele explica o que prevê.** Um assistente responde em português a perguntas como "vai
+  chover na Pampulha às 18h?" com o número da previsão e o significado dele.
+
+## Como usar
+
+### Site
+
+A página pública mostra, para cada ponto monitorado, a probabilidade de chuva nas três
+horas previstas, o horário de emissão e a versão do modelo. Ela é atualizada a cada hora.
+
+O chat com o assistente fica na mesma página e exige login. O acesso é por convite: quem
+administra o sistema cria o usuário, e a pessoa recebe uma senha temporária por e-mail.
+
+### Assistente
+
+O assistente consulta a previsão, a lista de pontos e uma base com o glossário e as
+orientações de leitura. Ele responde em hora de Brasília, recusa perguntas fora do tema e
+sempre lembra que a previsão não substitui os alertas oficiais.
+
+```bash
+uv run python scripts/genai_ops.py ask "Vai chover na Pampulha nas próximas horas?"
+```
+
+### API
+
+Para integrar com outros sistemas, há uma API HTTP com autenticação IAM (SigV4):
+
+| Rota | Resposta |
+|---|---|
+| `GET /points` | Pontos monitorados, com código, nome e coordenadas |
+| `GET /forecast?point=A521` | Última previsão do ponto: horário de emissão, versão do modelo e probabilidade por horizonte |
+
+## Como ler uma previsão
+
+Cada número é a chance de chover **pelo menos 0,5 mm numa hora específica**, medida no
+pluviômetro da estação. Uma previsão emitida às 10h (hora de Brasília) traz:
+
+| Horizonte | Hora a que se refere |
+|---|---|
+| 1 h | entre 10h e 11h |
+| 3 h | entre 12h e 13h |
+| 6 h | entre 15h e 16h |
+
+Alguns cuidados para não ler errado:
+
+- **Não é um acumulado.** A chance de chover em algum momento das próximas seis horas é
+  maior que qualquer um dos três números.
+- **Compare com o normal da época e da hora.** Na Pampulha, em novembro, de 2% a 3% das
+  horas da manhã têm chuva; entre 18h e 23h, de 10% a 11%. Uma previsão de 1,5% às 10h diz que
+  a manhã está mais seca que o habitual.
+- **0,5 mm é chuva fraca.** O sistema não diz quanto vai chover nem a área atingida.
+
+### Quanto dá para confiar
+
+No ano de teste (2025), as probabilidades do modelo em produção ficaram próximas da
+frequência real de chuva:
+
+| O modelo disse | Choveu de fato | Horas avaliadas |
 |---|---|---|
-| 0 | KMS, buckets, CloudTrail, budget and kill switch | Deployed |
-| 1 | Hourly ingestion, Parquet lake, Glue and Athena, 7 years of history | Deployed |
-| 2 | Features, baselines, SageMaker pipeline, tuning, SHAP | Deployed; pipeline run and model v1 registered, pending approval |
-| 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Deployed; METAR model v3 forecasts Pampulha every hour |
-| 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Deployed; 89% tool accuracy, 0.96 faithfulness |
-| 5 | Quality and drift monitoring, dashboard, alarms, retraining | Deployed; alarm and retraining tested end to end |
-| 6 | Web site with public forecasts and a signed-in chat | Deployed on CloudFront with Cognito |
+| cerca de 1% | 0,9% | 23.558 |
+| cerca de 14% | 10% | 1.212 |
+| cerca de 25% | 19% | 656 |
+| cerca de 35% | 30% | 449 |
+| cerca de 54% | 66% | 87 |
 
-Live forecasts run every hour for Pampulha in METAR mode, which uses the airport's public
-weather reports instead of the INMET API ([ADR-013](docs/adr/013-modo-metar.md)). The other
-three points need the INMET API token, which has been requested. Observed rainfall for quality
-monitoring still arrives about one month late.
+Usado como alerta a partir de 20%, ele pega 57% das horas com chuva, e 7 de cada 10 alertas
+são falsos. É o retrato de um problema difícil: pancadas de verão nascem e morrem em
+minutos, a poucos quilômetros umas das outras.
 
-Site: public forecasts and a chat with the agent for invited users, served by CloudFront with
-Cognito sign-in (`scripts/web_ops.py`).
+## Desempenho
 
-Architecture and request flow: [docs/architecture.md](docs/architecture.md). Decisions:
-[docs/adr](docs/adr/README.md). Exam mapping: [docs/exam-mapping.md](docs/exam-mapping.md).
+O modelo é comparado com duas referências calibradas no mesmo período. A **persistência**
+supõe que a próxima hora será como a atual. A **previsão numérica** é a da Open-Meteo,
+convertida em probabilidade. As métricas são do ano de 2025, que ficou fora do treino.
 
-## Cost
+| Conjunto avaliado | Preditor | Brier (menor é melhor) | PR-AUC (maior é melhor) |
+|---|---|---:|---:|
+| Quatro pontos | Persistência | 0,0239 | 0,159 |
+| | Previsão numérica | 0,0242 | 0,157 |
+| | Modelo com a estação do INMET | **0,0211** | **0,367** |
+| Pampulha, período com METAR | Persistência | 0,0255 | 0,155 |
+| | Previsão numérica | 0,0253 | 0,162 |
+| | Modelo com o METAR do aeroporto | **0,0225** | **0,357** |
 
-Measured spend so far is in [docs/cost-log.md](docs/cost-log.md); billing data lags by up to a
-day. The plan targets at most US$ 50 for the whole project. With every phase deployed, the
-largest recurring items are expected to be CloudWatch custom metrics (about US$ 5 per month),
-the KMS key (US$ 1 per month) and Bedrock tokens, which depend on use.
+Nos dois conjuntos, o ganho no Brier fica entre 11% e 12% sobre a melhor referência. O PR-AUC,
+que mede a capacidade de pôr as horas de chuva no topo, cai com a antecedência. No modelo em
+produção, ele vai de 0,48 em 1 hora a 0,27 em 6 horas.
+Detalhes em [docs/evaluation.md](docs/evaluation.md) e no
+[model card](docs/model-card.md).
 
-After the project, the suggestion is to keep only Phases 0, 1 and 3 running and remove the
-rest with `scripts/teardown.py --phase N --yes`.
+## Como funciona
 
-## Limitations
+```mermaid
+flowchart LR
+  OBS[Estações INMET] --> LAKE[(Data lake)]
+  METAR[METAR do aeroporto] --> LAKE
+  NWP[Previsão Open-Meteo] --> LAKE
+  LAKE --> TRAIN[Treino e avaliação]
+  TRAIN --> REG[Registro de modelos<br/>com aprovação]
+  REG --> EP[Endpoint de inferência]
+  LAKE --> SCORE[Previsão horária]
+  EP --> SCORE
+  SCORE --> DB[(Previsões)]
+  DB --> API[API]
+  DB --> SITE[Site]
+  API --> AGENT[Assistente]
+  DB --> QUAL[Qualidade contra a chuva observada]
+  QUAL --> ALARM[Alarmes e retreino]
+```
 
-- One test year and four stations; summer storms are local, so a station may not represent
-  nearby neighbourhoods.
-- Forecast features from the historical API include runs issued after the prediction time.
-  New runs are stored with their issue time, so retraining on them removes this bias.
-- The Guardrail has no denied topic, because the classic tier blocked legitimate Portuguese
-  questions; off-topic refusal relies on the system prompt (7 of 8 refusal cases).
+Toda hora, em sequência:
 
-## Requirements
+| Minuto | Etapa |
+|---|---|
+| 5 | Coleta a rodada nova da previsão numérica, o METAR e, quando disponível, a observação da estação |
+| 20 | Monta as variáveis da hora, chama o modelo e grava a probabilidade por horizonte |
+| 30 | Publica as previsões no site |
+| 40 | Compara as previsões vencidas com a chuva medida e publica as métricas de qualidade |
 
-Python 3.12 managed by [uv](https://docs.astral.sh/uv/), Node.js 24, and AWS CLI v2 for
-deployment.
+Uma vez por dia, o sistema compara a distribuição das variáveis observadas com a do período
+de treino (PSI). Desvio grande gera alerta.
+
+### Dados
+
+| Fonte | Para que é usada | Atualização |
+|---|---|---|
+| Estações automáticas do INMET (Pampulha, Santo Agostinho, Florestal, Sete Lagoas) | Chuva medida, que é o que o modelo aprende a prever, e o estado do tempo na estação | Arquivo histórico mensal; dado horário pela API do INMET |
+| METAR do aeroporto da Pampulha (SBBH) | Temperatura, umidade, pressão, vento, teto de nuvens e chuva ou trovoada em curso | Horária |
+| Open-Meteo, previsão numérica (licença CC BY 4.0) | Chuva, nuvens, umidade e CAPE previstos para cada horizonte | Horária |
+
+### Modelo
+
+Um XGBoost único para os três horizontes, com 25 a 28 variáveis, conforme o modo:
+
+- chuva recente e acumulada;
+- tendência de pressão;
+- diferença entre temperatura e ponto de orvalho;
+- vento e teto de nuvens;
+- hora do dia e época do ano;
+- previsão numérica para a hora alvo.
+
+O treino é temporal: até 2023 para aprender, 2024 para ajustar e 2025 para avaliar.
+
+Cada versão treinada só entra no registro se superar as referências no Brier, e só vai para
+produção depois de aprovação manual. A aprovação troca o modelo do endpoint
+automaticamente.
+
+O sistema tem dois modos de operação, que dependem da fonte disponível em tempo real:
+
+- **Modo completo:** usa a observação horária das estações do INMET e cobre os quatro pontos.
+- **Modo METAR:** usa o boletim do aeroporto no lugar da estação e cobre a Pampulha, com
+  desempenho quase igual ao modo completo. É o modo em operação hoje, enquanto o acesso à
+  API horária do INMET não é liberado.
+
+### Assistente
+
+Um agente LangGraph com três ferramentas, todas só de leitura: previsão, lista de pontos e
+busca numa base de conhecimento com o glossário, o guia de leitura e o model card. Um
+guardrail filtra conteúdo impróprio, tentativas de manipular o prompt e dados pessoais. Ele
+é avaliado com 36 perguntas de referência: escolheu a ferramenta certa em 89% delas e teve
+fidelidade de 0,96 às fontes ([docs/agent-evaluation.md](docs/agent-evaluation.md)).
+
+## Segurança e privacidade
+
+- Cada componente tem a própria permissão, restrita ao que ele usa.
+- Os dados ficam criptografados com uma chave do projeto, e os buckets não têm acesso público.
+- O site é servido só por HTTPS, com política de conteúdo que bloqueia scripts de terceiros.
+- A API exige assinatura, e o chat exige login.
+- As perguntas feitas no chat não são gravadas nos logs da aplicação.
+- Toda alteração na infraestrutura fica registrada na trilha de auditoria
+  ([docs/cloudtrail-audit.md](docs/cloudtrail-audit.md)).
+- Um orçamento com alertas por e-mail e bloqueio automático de criação de recursos protege
+  contra gasto inesperado.
+
+## Operação
+
+A infraestrutura é código (AWS CDK, Python), em sete stacks:
+
+| Stack | O que contém |
+|---|---|
+| `foundation` | Chave de criptografia, buckets, trilha de auditoria, orçamento |
+| `ingestion` | Coleta horária, catálogo e consultas SQL do data lake |
+| `ml` | Permissões de treino e registro de modelos |
+| `serving` | Previsão horária, tabela de previsões, API e deploy de modelos |
+| `genai` | Base de conhecimento, guardrail, prompt e assistente |
+| `observability` | Qualidade, drift, painel, alarmes e retreino |
+| `web` | Site, login e chat |
+
+Tarefas do dia a dia:
+
+```bash
+# carga do histórico (estações, previsão numérica e METAR)
+uv run python scripts/backfill.py
+uv run python scripts/backfill.py --dataset observations --start-year 2026   # atualização mensal
+
+# treino
+uv run python scripts/train_local.py                      # experimento local
+uv run python scripts/sagemaker_jobs.py start             # pipeline, modo completo
+uv run python scripts/sagemaker_jobs.py start --feature-set metar
+uv run python scripts/explain.py --model-package-arn ARN --test S3_URI   # SHAP
+
+# assistente
+uv run python scripts/genai_ops.py sync-kb                # reindexa a base de conhecimento
+uv run python eval/run_eval.py                            # avaliação com as perguntas de referência
+
+# site
+uv run python scripts/web_ops.py deploy-site
+uv run python scripts/web_ops.py create-user --email pessoa@exemplo.com
+
+# limpeza e custo
+uv run python scripts/ttl_sweeper.py --yes                # apaga recursos temporários vencidos
+uv run python scripts/teardown.py --phase 6 --dry-run     # lista o que seria removido de uma stack
+uv run python scripts/cost_report.py
+```
+
+A configuração de deploy vem do ambiente e nunca vai para o Git
+([.env.example](.env.example)):
+
+| Variável | Uso |
+|---|---|
+| `CHUVA_BUDGET_EMAIL` | Recebe os alertas de custo e os alarmes do sistema |
+| `CHUVA_KILL_SWITCH_ROLES` | Roles que perdem a permissão de criar recursos caros quando o orçamento é atingido |
+| `CHUVA_KILL_SWITCH_USERS` | Usuários IAM com a mesma regra |
+
+## Desenvolvimento
+
+Requisitos: Python 3.12 com [uv](https://docs.astral.sh/uv/), Node.js 24 e AWS CLI v2.
 
 ```bash
 uv sync
 npm ci
 uv run pre-commit install
-```
 
-## Configuration
-
-Deployment settings are read from the environment and are never stored in Git. See
-[.env.example](.env.example).
-
-| Variable | Required | Purpose |
-|---|---|---|
-| `CHUVA_BUDGET_EMAIL` | yes | Receives budget alerts and kill switch notifications |
-| `CHUVA_KILL_SWITCH_USERS` | no | Comma-separated IAM users that also receive the deny policy |
-| `CHUVA_KILL_SWITCH_ROLES` | no | Comma-separated IAM roles, with path, that also receive it. Set it on every deploy, or the roles drop out of the kill switch |
-
-## Checks
-
-```bash
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
@@ -82,149 +269,34 @@ uv run pytest
 npx cdk synth --quiet
 ```
 
-## Phase 0: foundation
+Os testes não acessam a AWS: os serviços são simulados com `moto` e as chamadas externas
+com respostas sintéticas. O CI roda os mesmos comandos a cada push.
 
-`FoundationStack` provisions:
+| Pasta | Conteúdo |
+|---|---|
+| `src/ingestion` | Clientes das fontes, validação e escrita no data lake |
+| `src/features` | Variáveis do modelo, as mesmas no treino e na previsão |
+| `src/training` | Preparação, métricas, referências e pipeline de treino |
+| `src/serving` | Previsão horária, API e deploy de modelos |
+| `src/agent` | Assistente, ferramentas e avaliação |
+| `src/monitoring` | Qualidade e drift |
+| `src/web` e `web/` | Backend e páginas do site |
+| `infra/` | Stacks do CDK |
+| `scripts/` | Operação |
 
-- One customer managed KMS key used by every bucket and by the audit trail.
-- `raw`, `curated`, `artifacts` and `kb-docs` buckets, plus an `audit` bucket for CloudTrail.
-  All block public access, use SSE-KMS with S3 Bucket Keys and reject non-TLS requests.
-  Objects in `raw` expire after 30 days and objects in `audit` after 90 days.
-- A multi-region CloudTrail trail for management events.
-- A US$ 60 AWS Budget with email alerts at 25, 50, 80 and 100% of actual spend.
-- A kill switch: at 90% an AWS Budgets action attaches a deny policy that blocks creating
-  SageMaker, Bedrock and AgentCore resources.
+## Documentação
 
-Design notes:
+- [Arquitetura e fluxo de uma previsão](docs/architecture.md)
+- [Model card](docs/model-card.md) e [explicabilidade](docs/explainability.md)
+- [Avaliação do modelo](docs/evaluation.md) e [do assistente](docs/agent-evaluation.md)
+- [Qualidade dos dados](docs/data-quality.md) e [consultas SQL](docs/athena-queries.md)
+- [Decisões de arquitetura](docs/adr/README.md)
 
-- The budget excludes credits and refunds. With the AWS default the net cost of an account
-  paid with credits stays at zero, so no alert would ever fire.
-- The budget accumulates from 2026-11-01 instead of resetting monthly, because the limit
-  applies to the whole project.
-- The kill switch targets the CDK CloudFormation execution role, which is the identity that
-  creates stack resources, plus the roles in `CHUVA_KILL_SWITCH_ROLES`, such as the login role
-  that starts SageMaker jobs from scripts. It stops new resources only: running workloads keep
-  running, and billing data can lag by several hours.
-- Deployments run from a workstation for now, so there is no GitHub Actions deploy role.
+## Aviso
 
-### Deployment
+Previsão experimental. Não substitui os alertas da Defesa Civil de Belo Horizonte nem os
+avisos do INMET. Em risco de alagamento ou deslizamento, siga sempre as orientações oficiais.
 
-```bash
-npx cdk bootstrap aws://<account>/us-east-2 --tags Project=chuva-bh --tags Phase=0 --tags Owner=dias
-npx cdk diff FoundationStack
-npx cdk deploy FoundationStack
-```
-
-To report cost by tag, activate `Project` and `Phase` as cost allocation tags once they show
-up in the Billing console, which can take up to 24 hours after the first deployment:
-
-```bash
-aws ce update-cost-allocation-tags-status --cost-allocation-tags-status \
-  TagKey=Project,Status=Active TagKey=Phase,Status=Active
-```
-
-### Operations
-
-```bash
-uv run python scripts/teardown.py --phase 0 --dry-run  # list what would be deleted
-uv run python scripts/teardown.py --phase 0 --yes      # delete
-uv run python scripts/teardown.py --all --yes          # delete every phase, newest first
-uv run python scripts/cost_report.py                   # update docs/cost-log.md
-```
-
-Teardown stops the trail, detaches the kill switch policy, empties the buckets and deletes
-the stack. It leaves the `CDKToolkit` bootstrap stack in place. Each cost report makes at
-least two Cost Explorer requests, at US$ 0.01 each.
-
-## Phase 1: data
-
-`IngestionStack` runs a Lambda every hour that stores the Open-Meteo operational forecast as raw
-JSON and partitioned Parquet, with a dead letter queue for failures. Glue tables use partition
-projection, so there is no recurring crawler, and an Athena workgroup caps each query at 1 GB.
-
-Observed rainfall comes from the yearly INMET station archives, which are published about one
-month late. See [ADR-006](docs/adr/006-ground-truth.md) for the source evaluation and its limits.
-
-```bash
-uv run python scripts/backfill.py --dry-run                         # process without writing
-uv run python scripts/backfill.py                                   # load the full history
-uv run python scripts/backfill.py --dataset observations --start-year 2026  # monthly refresh
-```
-
-Example queries are in [docs/athena-queries.md](docs/athena-queries.md), and the latest data
-quality results are in [docs/data-quality.md](docs/data-quality.md).
-
-## Phase 2: model
-
-Features are pure pandas functions in `src/features`, shared by training and scoring. The model is
-XGBoost, compared with two baselines calibrated on the training years: persistence and the
-Open-Meteo forecast. The split is temporal: train through 2023, validate on 2024, test on 2025.
-
-On the 2025 test set, a local run of `scripts/train_local.py` gave a Brier score 11.8% better than
-the best baseline, or 2.8% better without forecast features. Forecast features from the
-historical API leak part of the future, so the first number is optimistic
-([ADR-009](docs/adr/009-vazamento-na-previsao-historica.md)). Details are in
-[docs/evaluation.md](docs/evaluation.md).
-
-`MlStack` holds the SageMaker execution role and the Model Registry group. The pipeline runs
-Processing, Spot training, evaluation against the baselines, a condition on the Brier score and
-registration pending manual approval. It is created by a script, not by CloudFormation:
-
-```bash
-uv run python scripts/train_local.py                    # local experiment, reads S3 only
-uv run python scripts/sagemaker_jobs.py upsert          # create or update the pipeline
-uv run python scripts/sagemaker_jobs.py start           # run it
-uv run python scripts/sagemaker_jobs.py tune --train S3_URI --validation S3_URI
-uv run python scripts/explain.py --model-package-arn ARN --test S3_URI  # TreeSHAP
-```
-
-## Phase 3: serving
-
-Approving a model in the registry triggers a Lambda that creates or updates the `chuva-bh-rain`
-Serverless Endpoint and records the active version in SSM. Every hour, a scoring Lambda builds
-the features for the current hour, calls the endpoint and writes one item per horizon to
-DynamoDB, with a 90-day TTL. An HTTP API with IAM authentication and throttling serves
-`GET /points` and `GET /forecast?point=<id>`.
-
-Scoring needs the observation of the current hour, which only the INMET API provides. Until the
-API token is configured, scoring records every point as skipped. See
-[ADR-010](docs/adr/010-serving.md).
-
-## Phase 4: agent
-
-A LangGraph agent answers questions such as "vai chover na Pampulha às 18h?". It has three
-read-only tools with schema-validated arguments: the forecast API, the list of points and a
-Bedrock Knowledge Base over the project's own documents, stored in S3 Vectors. A Bedrock
-Guardrail blocks off-topic requests and masks personal data, the system prompt is versioned in
-Prompt Management, and the code runs on the AgentCore Runtime as a zip, without a container.
-
-```bash
-uv run python scripts/genai_ops.py sync-kb          # upload docs/kb and reindex
-uv run python scripts/genai_ops.py enable-logging   # Bedrock invocation logging, 14 days
-uv run python scripts/genai_ops.py ask "Vai chover na Pampulha às 18h?"
-uv run python eval/run_eval.py                      # golden set, with LLM-as-a-judge
-```
-
-On the 36-case golden set the deployed agent reached 89% tool accuracy and 0.96 faithfulness,
-against targets of 85% and 0.8. Fixed-size chunking beat hierarchical chunking on faithfulness.
-See [docs/agent-evaluation.md](docs/agent-evaluation.md) and [ADR-011](docs/adr/011-agente.md).
-
-## Phase 5: operations
-
-Every hour, a quality Lambda joins issued forecasts with observed rainfall and publishes the
-Brier score of the model and of a calibrated persistence baseline over 7 and 30 days. Every day,
-a drift Lambda computes the PSI of each observed feature against the training period. A
-CloudWatch dashboard shows ingestion, quality, drift, API latency and agent tokens. Alarms email
-the alert address, and the quality alarm starts the training pipeline, with manual approval
-kept. See [ADR-012](docs/adr/012-operacao.md).
-
-```bash
-uv run python scripts/model_monitor_exercise.py export-baseline
-uv run python scripts/model_monitor_exercise.py create --model-package-arn ARN --baseline-csv S3_URI
-uv run python scripts/model_monitor_exercise.py traffic --endpoint NAME
-uv run python scripts/model_monitor_exercise.py cleanup --endpoint NAME
-uv run python scripts/ttl_sweeper.py --yes        # deletes anything whose TTL tag has expired
-```
-
-Audit queries for model approvals and deployments are in
-[docs/cloudtrail-audit.md](docs/cloudtrail-audit.md).
+Dados de previsão numérica: [Open-Meteo](https://open-meteo.com), sob licença CC BY 4.0.
+Dados de estações: Instituto Nacional de Meteorologia (INMET). Boletins METAR: Aviation
+Weather Center e Iowa Environmental Mesonet.

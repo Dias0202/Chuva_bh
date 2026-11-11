@@ -6,7 +6,8 @@ Estimar a probabilidade de chover pelo menos 0,5 mm na hora que termina 1, 3 ou 
 da última observação, em quatro estações automáticas do INMET na região de Belo Horizonte:
 Pampulha (A521), Santo Agostinho (A572), Florestal (A535) e Sete Lagoas (A569).
 
-É um projeto de portfólio e estudo. Não serve para decisões de segurança e não substitui os
+O uso pretendido é informativo: planejar atividades ao ar livre, deslocamentos e trabalho
+exposto ao tempo nas próximas horas. Não serve para decisões de segurança e não substitui os
 alertas da Defesa Civil nem os avisos do INMET.
 
 ## Dados

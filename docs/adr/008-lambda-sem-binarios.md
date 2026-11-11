@@ -19,5 +19,5 @@ de uma estação Windows, sem Docker, e o CI só roda `cdk synth`.
 
 - A versão da layer está fixada em `infra/stacks/ingestion_stack.py` e precisa ser atualizada
   junto com o `pyarrow`.
-- A API da Fase 3 ainda exige `pydantic` (seção 3.2 do plano). Essa fase precisará empacotar
-  dependências nativas.
+- A Lambda da API valida a entrada com `pydantic` e por isso empacota dependências nativas,
+  com o `uv` (ADR-010).

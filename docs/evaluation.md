@@ -31,7 +31,7 @@ Features com maior ganho: `fc_precipitation_sum_mm`, `fc_precipitation_mm`, `pre
   valores vem de rodadas emitidas depois de t, então o conjunto `full` e a baseline de
   previsão são otimistas (ver ADR-009). O conjunto `obs_only` não tem esse viés.
 - `scale_pos_weight` maior que 1 desloca as probabilidades para cima e piora o Brier;
-  ele só aparece aqui como comparação pedida no plano.
+  por isso o modelo usa peso 1, e a linha com peso automático fica só como comparação.
 
 ## Modo METAR (Pampulha)
 
