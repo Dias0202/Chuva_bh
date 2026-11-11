@@ -34,6 +34,9 @@ AGENT_REQUIREMENTS: Final = (
     "pydantic==2.14.3",
 )
 CHUNKING_STRATEGIES: Final = ("fixed", "hierarchical")
+# ADDRESS e NAME ficaram de fora: o filtro trocava nomes de cidade e bairro, que são o
+# conteúdo normal das respostas, por marcadores como {ADDRESS}.
+PII_ENTITIES: Final = ("EMAIL", "PHONE")
 OFF_TOPIC_MESSAGE: Final = (
     "Só posso ajudar com chuva e tempo nos pontos monitorados da região de Belo Horizonte."
 )
@@ -214,35 +217,26 @@ class GenAiStack(Stack):
             description="Mantém o agente no tema de chuva e protege dados pessoais",
             blocked_input_messaging=OFF_TOPIC_MESSAGE,
             blocked_outputs_messaging=OFF_TOPIC_MESSAGE,
-            topic_policy_config=bedrock.CfnGuardrail.TopicPolicyConfigProperty(
-                topics_config=[
-                    bedrock.CfnGuardrail.TopicConfigProperty(
-                        name="OffTopic",
-                        type="DENY",
-                        definition=(
-                            "Requests unrelated to weather, rain, climate or this rain forecasting"
-                            " project, such as finance, politics, health, sports or programming."
-                        ),
-                        examples=[
-                            "Qual a cotação do dólar hoje?",
-                            "Quem vai ganhar a próxima eleição?",
-                            "Recomende um remédio para dor de cabeça.",
-                        ],
-                    )
-                ]
-            ),
+            # Sem tópico negado: no nível clássico os tópicos são treinados para inglês e
+            # bloqueavam perguntas legítimas sobre chuva em português. A recusa fora do tema
+            # fica com o prompt de sistema e é medida pelo golden set.
             content_policy_config=bedrock.CfnGuardrail.ContentPolicyConfigProperty(
                 filters_config=filters
             ),
             sensitive_information_policy_config=bedrock.CfnGuardrail.SensitiveInformationPolicyConfigProperty(
                 pii_entities_config=[
                     bedrock.CfnGuardrail.PiiEntityConfigProperty(type=kind, action="ANONYMIZE")
-                    for kind in ("ADDRESS", "EMAIL", "NAME", "PHONE")
+                    for kind in PII_ENTITIES
                 ]
             ),
         )
+        # A versão publicada é um retrato do guardrail. A descrição muda junto com a
+        # configuração e força uma versão nova a cada alteração.
         version = bedrock.CfnGuardrailVersion(
-            self, "GuardrailPublishedVersion", guardrail_identifier=guardrail.attr_guardrail_id
+            self,
+            "GuardrailPublishedVersion",
+            guardrail_identifier=guardrail.attr_guardrail_id,
+            description=f"Sem tópico negado; PII mascarada: {', '.join(PII_ENTITIES)}",
         )
         return guardrail, version
 
@@ -369,14 +363,8 @@ class GenAiStack(Stack):
             },
         )
         runtime.node.add_dependency(role)
-        # Cria o log group antes da primeira invocação, para valer a retenção de 14 dias.
-        logs.LogGroup(
-            self,
-            "AgentRuntimeLogGroup",
-            log_group_name=f"/aws/bedrock-agentcore/runtimes/{runtime.attr_agent_runtime_id}-DEFAULT",
-            retention=logs.RetentionDays.TWO_WEEKS,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
+        # O runtime cria o próprio log group ao nascer, com um nome que leva o ID dele. A
+        # retenção de 14 dias é aplicada depois do deploy por `genai_ops.py enable-logging`.
         return runtime
 
     def _create_invocation_logging(self) -> None:

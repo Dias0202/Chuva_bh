@@ -29,6 +29,8 @@ PROJECT: Final = "chuva-bh"
 KB_PREFIX: Final = "docs/"
 KB_FILES: Final = (*sorted((ROOT / "docs" / "kb").glob("*.md")), ROOT / "docs" / "model-card.md")
 INGESTION_TIMEOUT_SECONDS: Final = 600
+RUNTIME_LOG_PREFIX: Final = "/aws/bedrock-agentcore/runtimes/chuva_bh_agent-"
+LOG_RETENTION_DAYS: Final = 14
 
 
 def outputs(session: boto3.Session, stack: str) -> dict[str, str]:
@@ -76,6 +78,23 @@ def enable_logging(session: boto3.Session) -> None:
         }
     )
     print("Invocation logging ligado")
+    for name in set_runtime_log_retention(session):
+        print(f"Retenção de {LOG_RETENTION_DAYS} dias em {name}")
+
+
+def set_runtime_log_retention(session: boto3.Session) -> list[str]:
+    """O AgentCore cria os log groups do runtime sem retenção; aqui eles passam a 14 dias."""
+    logs = session.client("logs")
+    names = [
+        group["logGroupName"]
+        for page in logs.get_paginator("describe_log_groups").paginate(
+            logGroupNamePrefix=RUNTIME_LOG_PREFIX
+        )
+        for group in page["logGroups"]
+    ]
+    for name in names:
+        logs.put_retention_policy(logGroupName=name, retentionInDays=LOG_RETENTION_DAYS)
+    return names
 
 
 def ask(session: boto3.Session, question: str) -> dict[str, Any]:

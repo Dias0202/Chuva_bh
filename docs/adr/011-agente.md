@@ -24,13 +24,16 @@ Status: aceito em 2026-11-10, com riscos a confirmar no primeiro deploy.
 
 ## Riscos a confirmar no primeiro deploy
 
-- **SCP e inferência entre regiões.** O modelo padrão é o perfil `us.amazon.nova-lite-v1:0`,
-  que pode rotear para us-east-1, região negada pela SCP da conta. Se a chamada falhar, use um
-  modelo com inferência na própria região por `MODEL_ID` ou peça a exceção na SCP.
-- **Disponibilidade em us-east-2.** Titan Text Embeddings V2, S3 Vectors e AgentCore Runtime
-  precisam estar disponíveis na região para esta conta.
-- **Guardrail em português.** As definições do tópico negado estão em inglês, com exemplos em
-  português. A eficácia em português precisa ser medida pelos casos de recusa do golden set.
+- **SCP e inferência entre regiões (resolvido).** O perfil `us.amazon.nova-lite-v1:0` pode
+  rotear para us-east-1, região negada pela SCP. Em 2026-11-10, o Nova Lite respondeu em
+  us-east-2 sem perfil, e o agente passou a usar `amazon.nova-lite-v1:0`.
+- **Disponibilidade em us-east-2 (confirmada).** Titan Text Embeddings V2, S3 Vectors,
+  Guardrails e AgentCore responderam nesta conta em 2026-11-10.
+- **Guardrail em português (resolvido).** O tópico negado bloqueou como fora do tema
+  perguntas legítimas, como "Florestal vai ter chuva hoje à tarde?" (diagnóstico com
+  `ApplyGuardrail` em 2026-11-11). O tópico foi retirado; a recusa fora do tema fica com o
+  prompt de sistema. O Guardrail mantém os filtros de conteúdo, de ataque ao prompt e de
+  e-mail e telefone. Os nomes de cidade também deixaram de ser mascarados como endereço.
 - **Tamanho do pacote.** O zip do agente tem cerca de 131 MB descompactado, dentro do limite
   esperado para código direto, mas o valor deve ser conferido na primeira publicação.
 - **Observabilidade.** Os traces do AgentCore exigem o CloudWatch Transaction Search ligado na

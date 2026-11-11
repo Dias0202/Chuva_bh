@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Final
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
 MAX_QUESTION_CHARS: Final = 1000
 # Cada volta modelo -> ferramenta conta dois passos; 10 limita a quatro chamadas de ferramenta.
 RECURSION_LIMIT: Final = 10
+_THINKING: Final = re.compile(r"<thinking>.*?</thinking>", flags=re.DOTALL | re.IGNORECASE)
+_STRAY_TAGS: Final = re.compile(r"</?(tool|thinking|response)[^>]*>", flags=re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,13 @@ def _text(message: AIMessage) -> str:
     )
 
 
+def clean_text(text: str) -> str:
+    """Remove o raciocínio e as marcas que o Nova às vezes deixa no texto final."""
+    text = _THINKING.sub("", text)
+    text = _STRAY_TAGS.sub("", text)
+    return text.strip()
+
+
 def answer(graph: CompiledStateGraph[Any, Any, Any, Any], question: object) -> AgentAnswer:
     result = graph.invoke(
         {"messages": [HumanMessage(validate_question(question))]},
@@ -116,7 +126,7 @@ def answer(graph: CompiledStateGraph[Any, Any, Any, Any], question: object) -> A
         if isinstance(m, ToolMessage)
     ]
     final = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
-    text = _text(final) if final is not None else ""
+    text = clean_text(_text(final)) if final is not None else ""
     # O aviso é fixo e não depende do modelo lembrar dele.
     if DISCLAIMER not in text:
         text = f"{text.rstrip()}\n\n{DISCLAIMER}"

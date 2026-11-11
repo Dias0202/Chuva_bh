@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Perfil de inferência entre regiões dos EUA. Ver ADR-011 sobre a SCP que nega us-east-1.
-DEFAULT_MODEL_ID = "us.amazon.nova-lite-v1:0"
+# Modelo na própria região: o perfil entre regiões pode rotear para us-east-1, negada pela SCP
+# da conta (ADR-011). Chamada testada em us-east-2 em 2026-11-10.
+DEFAULT_MODEL_ID = "amazon.nova-lite-v1:0"
 PROMPT_FILE = Path(__file__).with_name("system_prompt.md")
 DISCLAIMER = "Previsão experimental: não substitui os alertas oficiais da Defesa Civil e do INMET."

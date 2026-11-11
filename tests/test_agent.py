@@ -263,6 +263,14 @@ def test_golden_set_is_valid_and_large_enough() -> None:
         load_golden_set([cases[0].model_dump_json()] * 2)
 
 
+def test_clean_text_removes_model_markup() -> None:
+    from agent.graph import clean_text
+
+    raw = "\n<thinking>vou buscar</thinking>A CAPE é energia. </tool>\n"
+
+    assert clean_text(raw) == "A CAPE é energia."
+
+
 def test_scoring_helpers() -> None:
     assert tools_match(["get_forecast"], ["list_points", "get_forecast"])
     assert not tools_match(["get_forecast"], ["list_points"])

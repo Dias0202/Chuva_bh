@@ -1,0 +1,370 @@
+{
+  "summary": {
+    "cases": 36,
+    "errors": 0,
+    "tool_accuracy": 0.8928571428571429,
+    "refusal_accuracy": 0.875,
+    "faithfulness": 0.9615384615384616,
+    "meets_targets": true
+  },
+  "cases": [
+    {
+      "id": "f01",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f02",
+      "tools": [
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f03",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f04",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f05",
+      "tools": [
+        "list_points"
+      ],
+      "tool_correct": false,
+      "refusal_correct": true,
+      "faithfulness": 0.0,
+      "error": null
+    },
+    {
+      "id": "f06",
+      "tools": [
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f07",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f08",
+      "tools": [
+        "list_points",
+        "get_forecast"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f09",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f10",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f11",
+      "tools": [
+        "list_points",
+        "get_forecast"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "f12",
+      "tools": [
+        "list_points",
+        "get_forecast",
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "p01",
+      "tools": [
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "p02",
+      "tools": [
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "p03",
+      "tools": [],
+      "tool_correct": false,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "p04",
+      "tools": [
+        "list_points"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d01",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d02",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d03",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d04",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d05",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d06",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d07",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d08",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d09",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d10",
+      "tools": [],
+      "tool_correct": false,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "d11",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "d12",
+      "tools": [
+        "search_docs"
+      ],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": 1.0,
+      "error": null
+    },
+    {
+      "id": "r01",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": false,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r02",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r03",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r04",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r05",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r06",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r07",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    },
+    {
+      "id": "r08",
+      "tools": [],
+      "tool_correct": true,
+      "refusal_correct": true,
+      "faithfulness": null,
+      "error": null
+    }
+  ]
+}

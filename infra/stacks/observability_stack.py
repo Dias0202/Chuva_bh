@@ -27,6 +27,7 @@ PHASE: Final = "5"
 QUALITY_SCHEDULE: Final = "cron(40 * * * ? *)"
 DRIFT_SCHEDULE: Final = "cron(0 6 * * ? *)"
 PSI_THRESHOLD: Final = 0.25
+RETRAIN_ROLE_NAME: Final = f"{PROJECT}-retrain-events"
 # Preço de tabela do Nova Lite em us-east-2 (US$ por milhão de tokens), conferir antes de usar.
 NOVA_LITE_INPUT_PRICE: Final = 0.06
 NOVA_LITE_OUTPUT_PRICE: Final = 0.24
@@ -228,9 +229,11 @@ class ObservabilityStack(Stack):
         pipeline_arn = (
             f"arn:{self.partition}:sagemaker:{self.region}:{self.account}:pipeline/{PIPELINE_NAME}"
         )
+        # Nome fixo para que o kill switch da fundação possa incluí-la (CHUVA_KILL_SWITCH_ROLES).
         role = iam.Role(
             self,
             "RetrainRole",
+            role_name=RETRAIN_ROLE_NAME,
             assumed_by=iam.ServicePrincipal(
                 "events.amazonaws.com",
                 conditions={"StringEquals": {"aws:SourceAccount": self.account}},

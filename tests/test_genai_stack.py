@@ -86,7 +86,8 @@ def test_guardrail_denies_off_topic_and_masks_pii(template: Template) -> None:
     )
     props = guardrail["Properties"]
 
-    assert props["TopicPolicyConfig"]["TopicsConfig"][0]["Type"] == "DENY"
+    # Tópicos negados bloqueavam perguntas legítimas em português (ADR-011).
+    assert "TopicPolicyConfig" not in props
     pii = {e["Type"] for e in props["SensitiveInformationPolicyConfig"]["PiiEntitiesConfig"]}
     assert {"EMAIL", "PHONE"} <= pii
     filters = {f["Type"] for f in props["ContentPolicyConfig"]["FiltersConfig"]}
