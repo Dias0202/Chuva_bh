@@ -16,8 +16,8 @@ future in the historical data, the gain is 2.8%. See the [model card](docs/model
 | 1 | Hourly ingestion, Parquet lake, Glue and Athena, 7 years of history | Deployed |
 | 2 | Features, baselines, SageMaker pipeline, tuning, SHAP | Deployed; pipeline run and model v1 registered, pending approval |
 | 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Deployed; model v1 serving, scoring waits for the INMET token |
-| 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Code and tests |
-| 5 | Quality and drift monitoring, dashboard, alarms, retraining | Code and tests |
+| 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Deployed; 89% tool accuracy, 0.96 faithfulness |
+| 5 | Quality and drift monitoring, dashboard, alarms, retraining | Deployed; alarm and retraining tested end to end |
 
 Live scoring and monitoring need the hourly observation from the INMET API, whose access token
 has been requested. Until then, observed rainfall arrives about one month late.
@@ -41,8 +41,8 @@ rest with `scripts/teardown.py --phase N --yes`.
   nearby neighbourhoods.
 - Forecast features from the historical API include runs issued after the prediction time.
   New runs are stored with their issue time, so retraining on them removes this bias.
-- The agent's Guardrail topics are defined in English and still need to be measured on
-  Portuguese questions.
+- The Guardrail has no denied topic, because the classic tier blocked legitimate Portuguese
+  questions; off-topic refusal relies on the system prompt (7 of 8 refusal cases).
 
 ## Requirements
 
@@ -199,9 +199,9 @@ uv run python scripts/genai_ops.py ask "Vai chover na Pampulha às 18h?"
 uv run python eval/run_eval.py                      # golden set, with LLM-as-a-judge
 ```
 
-The golden set has 36 cases. The targets are 85% tool accuracy and 0.8 faithfulness. Deployment
-risks, including the account SCP and cross-region inference, are in
-[ADR-011](docs/adr/011-agente.md).
+On the 36-case golden set the deployed agent reached 89% tool accuracy and 0.96 faithfulness,
+against targets of 85% and 0.8. Fixed-size chunking beat hierarchical chunking on faithfulness.
+See [docs/agent-evaluation.md](docs/agent-evaluation.md) and [ADR-011](docs/adr/011-agente.md).
 
 ## Phase 5: operations
 

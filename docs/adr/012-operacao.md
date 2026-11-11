@@ -17,7 +17,10 @@ Status: aceito em 2026-11-10.
   pipeline com `ModelApprovalStatus=PendingManualApproval`, então um modelo novo nunca entra
   em produção sem aprovação.
 - **Model Monitor à parte.** Como o Serverless Inference não tem data capture (ADR-003), o
-  exercício usa um endpoint real-time temporário, com a tag `TTL` e o `ttl_sweeper.py`.
+  exercício usa um endpoint real-time temporário, com a tag `TTL` e o `ttl_sweeper.py`. Em
+  2026-11-11, data capture e baseline funcionaram, mas o agendamento
+  (`CreateDataQualityJobDefinition`) está em modo de manutenção para contas novas. O drift em
+  produção fica com a Lambda própria.
 
 ## Custo
 
@@ -32,6 +35,5 @@ US$ 5 por mês.
   registram que não havia amostras.
 - O tópico SNS não usa criptografia com CMK: alarmes do CloudWatch não publicam em tópicos com a
   chave gerenciada pela AWS, e as mensagens não têm dados sensíveis.
-- O kill switch da Fase 0 nega `StartPipelineExecution` só para a role de execução do CDK. A
-  role do gatilho de retreino não está coberta e deve entrar no kill switch antes do deploy
-  desta stack.
+- O kill switch cobre a role do gatilho de retreino (`chuva-bh-retrain-events`) desde
+  2026-11-11, pela variável `CHUVA_KILL_SWITCH_ROLES`.

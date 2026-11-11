@@ -130,14 +130,20 @@ def create(session: boto3.Session, package_arn: str, baseline_csv: str) -> str:
         output_s3_uri=f"{prefix}/baseline/{name}",
         wait=True,
     )
-    monitor.create_monitoring_schedule(
-        monitor_schedule_name=name,
-        endpoint_input=name,
-        output_s3_uri=f"{prefix}/reports/{name}",
-        statistics=monitor.baseline_statistics(),
-        constraints=monitor.suggested_constraints(),
-        schedule_cron_expression=CronExpressionGenerator.hourly(),
-    )
+    try:
+        monitor.create_monitoring_schedule(
+            monitor_schedule_name=name,
+            endpoint_input=name,
+            output_s3_uri=f"{prefix}/reports/{name}",
+            statistics=monitor.baseline_statistics(),
+            constraints=monitor.suggested_constraints(),
+            schedule_cron_expression=CronExpressionGenerator.hourly(),
+        )
+    except ClientError as error:
+        # Em 2026-11-11 o agendamento estava em modo de manutenção para contas novas.
+        if "maintenance mode" not in error.response.get("Error", {}).get("Message", ""):
+            raise
+        print("Agendamento do Model Monitor indisponível nesta conta; endpoint e baseline ficam")
     return name
 
 
@@ -164,7 +170,8 @@ def cleanup(session: boto3.Session, endpoint: str) -> None:
     try:
         client.delete_monitoring_schedule(MonitoringScheduleName=endpoint)
     except ClientError as error:
-        if "Could not find" not in error.response.get("Error", {}).get("Message", ""):
+        # Sem schedule (por exemplo, quando o agendamento está indisponível na conta).
+        if error.response.get("Error", {}).get("Code") != "ResourceNotFound":
             raise
     delete_sagemaker_resources(
         client, [("endpoint", endpoint), ("endpoint-config", endpoint), ("model", endpoint)]
