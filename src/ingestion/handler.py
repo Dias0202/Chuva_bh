@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any, Final
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from ingestion.columns import FORECASTS, OBSERVATIONS, Dataset, Row
+from ingestion.columns import FORECASTS, METAR, OBSERVATIONS, Dataset, Row
 from ingestion.http import Fetch, FetchError, get_bytes
 from ingestion.inmet_api import InmetApiError, fetch_recent
+from ingestion.metar import POINT_ID as METAR_POINT
+from ingestion.metar import MetarFormatError, fetch_live
 from ingestion.open_meteo import OpenMeteoFormatError, fetch_forecast
 from ingestion.points import POINTS, Point
 from ingestion.quality import QualityReport, prepare
@@ -47,6 +49,8 @@ class RunResult:
     failed_points: tuple[str, ...]
     observation_report: QualityReport | None = None
     failed_observations: tuple[str, ...] = ()
+    metar_rows: int | None = None
+    metar_failed: bool = False
 
 
 def parse_issued_at(event: Mapping[str, Any]) -> datetime:
@@ -140,7 +144,34 @@ def publish_metrics(cloudwatch: CloudWatchClient, result: RunResult) -> None:
         metric_data += _metric_data(
             OBSERVATIONS, result.observation_report, len(result.failed_observations)
         )
+    if result.metar_rows is not None:
+        # Só duas métricas para o METAR, para conter o custo de métricas customizadas.
+        metric_data += [
+            {
+                "MetricName": name,
+                "Dimensions": [{"Name": "Dataset", "Value": METAR.name}],
+                "Value": float(value),
+                "Unit": "Count",
+            }
+            for name, value in (
+                ("RowsWritten", result.metar_rows),
+                ("PointsFailed", int(result.metar_failed)),
+            )
+        ]
     cloudwatch.put_metric_data(Namespace=METRIC_NAMESPACE, MetricData=metric_data)
+
+
+def _ingest_metar(s3: S3Client, curated_bucket: str, fetch: Fetch) -> int:
+    """Grava as últimas horas do METAR, um arquivo por hora observada: reescrever é idempotente."""
+    clean, _ = prepare(fetch_live(fetch), METAR)
+    by_hour: dict[str, list[Row]] = {}
+    for row in clean:
+        moment = row["observed_at"]
+        assert isinstance(moment, datetime)  # noqa: S101
+        by_hour.setdefault(f"{moment:%Y%m%dT%H}", []).append(row)
+    for hour, rows in by_hour.items():
+        write_rows(s3, curated_bucket, rows, METAR, METAR_POINT, f"live-{hour}.parquet")
+    return len(clean)
 
 
 def run(
@@ -154,6 +185,7 @@ def run(
     points: Iterable[Point] = POINTS,
     inmet_token: str | None = None,
     observation_fetch: Fetch | None = None,
+    metar_fetch: Fetch | None = None,
 ) -> RunResult:
     """Processa todos os pontos, para que a falha de um não impeça os demais."""
     selected = list(points)
@@ -186,17 +218,29 @@ def run(
                 logger.exception("Falha ao obter a observação do ponto %s", point.point_id)
                 failed_observations.append(point.point_id)
 
+    metar_rows: int | None = None
+    metar_failed = False
+    if metar_fetch is not None:
+        try:
+            metar_rows = _ingest_metar(s3, curated_bucket, metar_fetch)
+        except (*_RECOVERABLE, MetarFormatError):
+            logger.exception("Falha ao obter o METAR")
+            metar_rows, metar_failed = 0, True
+
     result = RunResult(
         issued_at,
         _sum_reports(reports),
         tuple(failed),
         _sum_reports(observation_reports) if inmet_token else None,
         tuple(failed_observations),
+        metar_rows,
+        metar_failed,
     )
     publish_metrics(cloudwatch, result)
     logger.info("Execução %s: %s, falhas=%s", issued_at.isoformat(), result.report, failed)
-    if failed or failed_observations:
-        raise IngestionError(f"Pontos com falha: {', '.join(failed + failed_observations)}")
+    if failed or failed_observations or metar_failed:
+        problems = failed + failed_observations + (["metar"] if metar_failed else [])
+        raise IngestionError(f"Pontos com falha: {', '.join(problems)}")
     return result
 
 
@@ -225,5 +269,6 @@ def handler(event: Mapping[str, Any], _context: object) -> dict[str, Any]:
         fetch=get_bytes,
         inmet_token=load_token(boto3.client("ssm"), os.environ.get("INMET_TOKEN_PARAMETER")),
         observation_fetch=lambda url: get_bytes(url, label="API do INMET"),
+        metar_fetch=get_bytes,
     )
     return {"issued_at": result.issued_at.isoformat(), "rows": result.report.rows}

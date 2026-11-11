@@ -76,7 +76,7 @@ class MlStack(Stack):
                 conditions={"StringEquals": {"aws:SourceAccount": self.account}},
             ),
         )
-        for prefix in ("observations/*", "forecasts/*"):
+        for prefix in ("observations/*", "forecasts/*", "metar/*"):
             curated_bucket.grant_read(role, prefix)
         artifacts_bucket.grant_read(role, "sagemaker/*")
         artifacts_bucket.grant_put(role, "sagemaker/*")

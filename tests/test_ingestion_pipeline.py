@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 from collections.abc import Iterator
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -234,11 +234,20 @@ def test_handler_reads_configuration_from_the_environment(
 ) -> None:
     monkeypatch.setenv("RAW_BUCKET", RAW)
     monkeypatch.setenv("CURATED_BUCKET", CURATED)
-    monkeypatch.setattr(ingest, "get_bytes", lambda _: _forecast_body())
+    metar = json.dumps(
+        [{"obsTime": int(ISSUED.replace(tzinfo=UTC).timestamp()), "temp": 22, "dewp": 16}]
+    ).encode()
+
+    def fake_get(url: str, **_: Any) -> bytes:
+        return metar if "aviationweather" in url else _forecast_body()
+
+    monkeypatch.setattr(ingest, "get_bytes", fake_get)
 
     result = ingest.handler({"scheduled_time": EVENT_TIME}, None)
 
     assert result == {"issued_at": ISSUED.isoformat(), "rows": 3 * len(POINTS)}
+    metar_keys = [k for k in _keys(s3, CURATED) if k.startswith("metar/")]
+    assert metar_keys == ["metar/year=2026/month=11/point_id=A521/live-20261110T12.parquet"]
 
 
 def test_backfill_forecasts_respects_the_available_range() -> None:

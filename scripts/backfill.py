@@ -5,6 +5,7 @@ Uso:
     backfill.py --dry-run                  processa sem gravar na AWS
     backfill.py                            grava observações e previsões
     backfill.py --dataset observations --start-year 2026
+    backfill.py --dataset metar --start-year 2021   METAR da Pampulha, sem credencial
 
 Os objetos têm chave determinística, então repetir a carga apenas os substitui.
 """
@@ -14,7 +15,8 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from functools import partial
 from pathlib import Path
@@ -25,9 +27,11 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ingestion.columns import FORECASTS, OBSERVATIONS, Dataset, Row
+from ingestion.columns import FORECASTS, METAR, OBSERVATIONS, Dataset, Row
 from ingestion.http import Fetch, FetchError, get_bytes
 from ingestion.inmet import BULK_URL_TEMPLATE, InmetFormatError, iter_stations
+from ingestion.metar import POINT_ID as METAR_POINT
+from ingestion.metar import MetarFormatError, archive_url, parse_archive
 from ingestion.open_meteo import OpenMeteoFormatError, fetch_historical
 from ingestion.points import POINT_IDS, POINTS
 from ingestion.quality import QualityReport, prepare
@@ -46,6 +50,10 @@ FORECASTS_START: Final = date(2021, 3, 24)
 BULK_TIMEOUT_SECONDS: Final = 240
 HISTORY_FILE_NAME: Final = "history.parquet"
 REPORT_PATH: Final = Path(__file__).resolve().parents[1] / "docs" / "data-quality.md"
+# O IEM limita a taxa de requisições: pausa entre anos e espera maior ao bater no limite.
+METAR_PAUSE_SECONDS: Final = 15
+METAR_RATE_LIMIT_WAIT_SECONDS: Final = 90
+METAR_ATTEMPTS: Final = 4
 
 Line = tuple[str, str, int, QualityReport]
 
@@ -73,6 +81,34 @@ def backfill_observations(
         archive = fetch(BULK_URL_TEMPLATE.format(year=year))
         for point_id, rows in iter_stations(archive, POINT_IDS):
             lines.append(load_rows(rows, OBSERVATIONS, point_id, year, s3, bucket))
+    return lines
+
+
+def backfill_metar(
+    fetch: Fetch,
+    s3: S3Client | None,
+    bucket: str,
+    start_year: int,
+    end_year: int,
+    sleep: Callable[[float], None] = time.sleep,
+) -> list[Line]:
+    lines: list[Line] = []
+    for year in range(start_year, end_year + 1):
+        if lines:
+            sleep(METAR_PAUSE_SECONDS)
+        logger.info("Baixando METAR de %d", year)
+        for attempt in range(1, METAR_ATTEMPTS + 1):
+            try:
+                rows = parse_archive(fetch(archive_url(year)).decode("utf-8"))
+                break
+            except MetarFormatError as error:
+                if "limite" not in str(error) or attempt == METAR_ATTEMPTS:
+                    raise
+                logger.warning(
+                    "Limite do IEM; nova tentativa em %ds", METAR_RATE_LIMIT_WAIT_SECONDS
+                )
+                sleep(METAR_RATE_LIMIT_WAIT_SECONDS)
+        lines.append(load_rows(rows, METAR, METAR_POINT, year, s3, bucket))
     return lines
 
 
@@ -112,7 +148,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     today = datetime.now(UTC).date()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", choices=("observations", "forecasts", "all"), default="all")
+    parser.add_argument(
+        "--dataset", choices=("observations", "forecasts", "metar", "all"), default="all"
+    )
     parser.add_argument("--start-year", type=int, default=OBSERVATIONS_START_YEAR)
     parser.add_argument("--end-year", type=int, default=today.year)
     parser.add_argument("--dry-run", action="store_true", help="processa sem gravar na AWS")
@@ -137,10 +175,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             lines += backfill_observations(fetch, s3, bucket, args.start_year, args.end_year)
         if args.dataset in ("forecasts", "all"):
             lines += backfill_forecasts(fetch, s3, bucket, args.start_year, args.end_year, today)
+        if args.dataset in ("metar", "all"):
+            lines += backfill_metar(fetch, s3, bucket, args.start_year, args.end_year)
     except (
         FetchError,
         InmetFormatError,
         OpenMeteoFormatError,
+        MetarFormatError,
         ClientError,
         BotoCoreError,
     ) as error:
@@ -151,9 +192,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.dry_run:
         print(report)
     else:
-        REPORT_PATH.write_text(report, encoding="utf-8")
+        existing = REPORT_PATH.read_text(encoding="utf-8") if REPORT_PATH.exists() else ""
+        REPORT_PATH.write_text(merge_report(existing, report), encoding="utf-8")
         print(f"Relatório gravado em {REPORT_PATH}")
     return 0
+
+
+def merge_report(existing: str, new: str) -> str:
+    """Mantém as linhas de datasets que não foram recarregados nesta execução."""
+
+    def rows(text: str) -> dict[tuple[str, str, str], str]:
+        found = {}
+        for line in text.splitlines():
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) == 8 and cells[2].isdigit():
+                found[(cells[0], cells[1], cells[2])] = line
+        return found
+
+    fresh = rows(new)
+    reloaded = {key[0] for key in fresh}
+    kept = {key: line for key, line in rows(existing).items() if key[0] not in reloaded}
+    merged = {**kept, **fresh}
+    header = new.split("|---", 1)[0] + "|---|---|---:|---:|---:|---:|---:|---:|\n"
+    return header + "".join(f"{merged[key]}\n" for key in sorted(merged))
 
 
 if __name__ == "__main__":

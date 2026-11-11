@@ -18,7 +18,7 @@ from aws_cdk import aws_scheduler as scheduler
 from aws_cdk import aws_sqs as sqs
 from constructs import Construct
 
-from ingestion.columns import FORECASTS, OBSERVATIONS, Dataset
+from ingestion.columns import FORECASTS, METAR, OBSERVATIONS, Dataset
 from ingestion.points import POINT_IDS
 from stacks.common import PROJECT, REGION, apply_project_tags
 
@@ -125,6 +125,7 @@ class IngestionStack(Stack):
         raw_bucket.grant_put(function, "open_meteo/*")
         curated_bucket.grant_put(function, f"{FORECASTS.name}/*")
         curated_bucket.grant_put(function, f"{OBSERVATIONS.name}/*")
+        curated_bucket.grant_put(function, f"{METAR.name}/*")
         # A chave AWS gerenciada do SSM autoriza a decriptação pelo próprio serviço.
         function.add_to_role_policy(
             iam.PolicyStatement(
@@ -189,7 +190,7 @@ class IngestionStack(Stack):
                 name=DATABASE_NAME, description="Data lake do projeto chuva-bh"
             ),
         )
-        for dataset in (OBSERVATIONS, FORECASTS):
+        for dataset in (OBSERVATIONS, FORECASTS, METAR):
             self._create_table(database, curated_bucket, dataset)
 
     def _create_table(

@@ -18,6 +18,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from features.build import FEATURE_SETS, HORIZONS, build_dataset
 from ingestion.handler import parse_issued_at
 from ingestion.lake import read_range
+from ingestion.metar import POINT_ID as METAR_POINT
 from ingestion.points import POINT_IDS
 from serving.store import ModelConfig, parse_model_config, prediction_item
 
@@ -66,18 +67,42 @@ def load_forecast(s3: S3Client, bucket: str, point_id: str, issued_at: datetime)
     )
 
 
+def load_metar(s3: S3Client, bucket: str, point_id: str, issued_at: datetime) -> pd.DataFrame:
+    start = issued_at - timedelta(hours=LOOKBACK_HOURS)
+    frame = read_range(s3, bucket, "metar", point_id, start, issued_at)
+    if frame.empty:
+        return frame
+    window = (frame["observed_at"] >= start) & (frame["observed_at"] <= issued_at)
+    return frame[window]
+
+
 def feature_rows(
     observations: pd.DataFrame,
     forecast: pd.DataFrame,
     issued_at: datetime,
     feature_set: str,
+    metar: pd.DataFrame | None = None,
+    point_id: str | None = None,
 ) -> pd.DataFrame | None:
-    """Linhas da hora de emissão, ou None se faltar a observação dessa hora."""
-    if observations.empty:
-        return None
-    rows = build_dataset(observations, forecast if not forecast.empty else None, with_labels=False)
+    """Linhas da hora de emissão, ou None quando falta o dado que o modelo exige.
+
+    O modelo completo exige a observação do INMET da hora. O modo METAR exige a previsão
+    da hora; sem METAR (madrugada), as features dele ficam vazias, como no treino.
+    """
+    forecasts = forecast if not forecast.empty else None
+    if feature_set == "metar":
+        if forecasts is None or point_id is None:
+            return None
+        issued = pd.DataFrame({"point_id": [point_id], "issued_at": [pd.Timestamp(issued_at)]})
+        rows = build_dataset(None, forecasts, with_labels=False, metar=metar, issued=issued)
+        required = "fc_precipitation_mm"
+    else:
+        if observations.empty:
+            return None
+        rows = build_dataset(observations, forecasts, with_labels=False)
+        required = "precip_mm"
     rows = rows[rows["issued_at"] == pd.Timestamp(issued_at)]
-    if rows.empty or rows["precip_mm"].isna().all():
+    if rows.empty or rows[required].isna().all():
         return None
     return rows[["horizon_h", *FEATURE_SETS[feature_set][1:]]].sort_values("horizon_h")
 
@@ -108,9 +133,21 @@ def _score_point(
     bucket: str,
     table: str,
 ) -> bool:
-    observations = load_observations(s3, bucket, point_id, issued_at)
     forecast = load_forecast(s3, bucket, point_id, issued_at)
-    rows = feature_rows(observations, forecast, issued_at, config.feature_set)
+    if config.feature_set == "metar":
+        if point_id != METAR_POINT:
+            return False
+        rows = feature_rows(
+            pd.DataFrame(),
+            forecast,
+            issued_at,
+            config.feature_set,
+            metar=load_metar(s3, bucket, point_id, issued_at),
+            point_id=point_id,
+        )
+    else:
+        observations = load_observations(s3, bucket, point_id, issued_at)
+        rows = feature_rows(observations, forecast, issued_at, config.feature_set)
     if rows is None:
         return False
     response = runtime.invoke_endpoint(

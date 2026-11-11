@@ -80,3 +80,24 @@ FORECASTS: Final = Dataset(
     key_columns=("point_id", "issued_at", "valid_at"),
     time_column="valid_at",
 )
+
+# Pressão ao nível do mar (QNH), por isso a faixa é diferente da pressão na estação do INMET.
+METAR: Final = Dataset(
+    name="metar",
+    columns=(
+        Column("observed_at", TIMESTAMP),
+        Column("source", STRING),
+        Column("temperature_c", DOUBLE, *_TEMPERATURE),
+        Column("dew_point_c", DOUBLE, *_DEW_POINT),
+        Column("pressure_hpa", DOUBLE, 950.0, 1050.0),
+        Column("wind_direction_deg", DOUBLE, *_DIRECTION),
+        Column("wind_speed_ms", DOUBLE, *_WIND),
+        Column("wind_gust_ms", DOUBLE, *_WIND),
+        Column("ceiling_ft", DOUBLE, 0.0, 30000.0),
+        Column("rain", DOUBLE, 0.0, 1.0),
+        Column("thunder", DOUBLE, 0.0, 1.0),
+        Column("weather", STRING),
+    ),
+    key_columns=("point_id", "observed_at"),
+    time_column="observed_at",
+)

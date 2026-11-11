@@ -49,9 +49,30 @@ FORECAST_FEATURES = (
     "fc_relative_humidity_pct",
 )
 
+# Do METAR do aeroporto: sem chuva em mm, só se chove ou troveja. Madrugada sem relatório
+# fica como NaN, tanto no treino quanto no scoring.
+METAR_FEATURES = (
+    "metar_available",
+    "metar_temperature_c",
+    "metar_dew_depression_c",
+    "metar_relative_humidity_pct",
+    "metar_pressure_hpa",
+    "metar_pressure_tendency_3h_hpa",
+    "metar_wind_speed_ms",
+    "metar_wind_gust_ms",
+    "metar_wind_dir_sin",
+    "metar_wind_dir_cos",
+    "metar_ceiling_ft",
+    "metar_rain_now",
+    "metar_thunder_now",
+    "metar_rain_hours_3h",
+    "metar_rain_hours_6h",
+)
+
 FEATURE_SETS = {
     "full": ("horizon_h", *OBSERVATION_FEATURES, *CALENDAR_FEATURES, *FORECAST_FEATURES),
     "obs_only": ("horizon_h", *OBSERVATION_FEATURES, *CALENDAR_FEATURES),
+    "metar": ("horizon_h", *METAR_FEATURES, *CALENDAR_FEATURES, *FORECAST_FEATURES),
 }
 
 
@@ -155,14 +176,77 @@ def rain_labels(observations: pd.DataFrame, horizons: Sequence[int]) -> pd.DataF
     return pd.concat(parts, ignore_index=True)
 
 
+def relative_humidity(temperature: pd.Series, dew_point: pd.Series) -> pd.Series:
+    """Umidade relativa (%) pela fórmula de Magnus."""
+    a, b = 17.625, 243.04
+    return (
+        100 * np.exp(a * dew_point / (b + dew_point)) / np.exp(a * temperature / (b + temperature))
+    )
+
+
+def metar_features(metar: pd.DataFrame, end: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Features do METAR por hora. `end` estende a grade até a hora pedida no scoring."""
+    parts = []
+    for point_id, group in metar.groupby("point_id", sort=True):
+        g = _regular(group, "observed_at")
+        if end is not None and end > g.index.max():
+            g = g.reindex(pd.date_range(g.index.min(), end, freq=pd.offsets.Hour()))
+        reported = g["source"].notna()
+        temperature = g["temperature_c"]
+        pressure = g["pressure_hpa"]
+        rain = g["rain"]
+        direction = np.deg2rad(g["wind_direction_deg"])
+
+        f = pd.DataFrame(index=g.index)
+        f["metar_available"] = reported.astype(float)
+        f["metar_temperature_c"] = temperature
+        f["metar_dew_depression_c"] = temperature - g["dew_point_c"]
+        f["metar_relative_humidity_pct"] = relative_humidity(temperature, g["dew_point_c"])
+        f["metar_pressure_hpa"] = pressure
+        f["metar_pressure_tendency_3h_hpa"] = pressure - pressure.shift(3)
+        f["metar_wind_speed_ms"] = g["wind_speed_ms"]
+        f["metar_wind_gust_ms"] = g["wind_gust_ms"]
+        f["metar_wind_dir_sin"] = np.sin(direction)
+        f["metar_wind_dir_cos"] = np.cos(direction)
+        # Sem camada de teto num relatório existente é céu aberto, não dado ausente.
+        f["metar_ceiling_ft"] = g["ceiling_ft"].where(~reported | g["ceiling_ft"].notna(), 30000.0)
+        f["metar_rain_now"] = rain
+        f["metar_thunder_now"] = g["thunder"]
+        f["metar_rain_hours_3h"] = rain.rolling(3, min_periods=1).sum()
+        f["metar_rain_hours_6h"] = rain.rolling(6, min_periods=1).sum()
+        f.index.name = "issued_at"
+        f = f.reset_index()
+        f["point_id"] = str(point_id)
+        parts.append(f)
+    return _with_ns(pd.concat(parts, ignore_index=True))
+
+
+def _with_ns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Mesma resolução de horário em todas as tabelas, para o merge não falhar."""
+    frame["issued_at"] = pd.to_datetime(frame["issued_at"]).astype("datetime64[ns]")
+    return frame
+
+
 def build_dataset(
-    observations: pd.DataFrame,
+    observations: pd.DataFrame | None,
     forecasts: pd.DataFrame | None,
     horizons: Sequence[int] = HORIZONS,
     with_labels: bool = True,
+    metar: pd.DataFrame | None = None,
+    issued: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Uma linha por ponto, instante de emissão e horizonte."""
-    base = observation_features(observations)
+    """Uma linha por ponto, instante de emissão e horizonte.
+
+    Sem observações do INMET (modo METAR no scoring), `issued` define os pontos e as horas.
+    """
+    if observations is not None and not observations.empty:
+        base = _with_ns(observation_features(observations))
+    elif issued is not None and not with_labels:
+        base = _with_ns(issued[["point_id", "issued_at"]].copy())
+        for column in OBSERVATION_FEATURES:
+            base[column] = np.nan
+    else:
+        raise ValueError("sem observações: informe `issued` e use with_labels=False")
     # Produto cartesiano por chave constante: `how="cross"` não existe no pandas antigo
     # dos containers do SageMaker.
     grid = pd.DataFrame({"horizon_h": list(horizons), "_join": 0})
@@ -171,12 +255,24 @@ def build_dataset(
 
     keys = list(KEY_COLUMNS)
     if forecasts is not None and not forecasts.empty:
-        rows = rows.merge(forecast_features(forecasts, horizons), on=keys, how="left")
+        rows = rows.merge(_with_ns(forecast_features(forecasts, horizons)), on=keys, how="left")
     else:
         for column in FORECAST_FEATURES:
             rows[column] = np.nan
 
+    if metar is not None and not metar.empty:
+        rows = rows.merge(
+            metar_features(metar, rows["issued_at"].max()),
+            on=["point_id", "issued_at"],
+            how="left",
+        )
+    for column in METAR_FEATURES:
+        if column not in rows.columns:
+            rows[column] = np.nan
+    rows["metar_available"] = rows["metar_available"].fillna(0.0)
+
     if with_labels:
-        rows = rows.merge(rain_labels(observations, horizons), on=keys, how="left")
+        assert observations is not None  # noqa: S101
+        rows = rows.merge(_with_ns(rain_labels(observations, horizons)), on=keys, how="left")
         rows = rows[rows[LABEL].notna()]
     return rows.sort_values(keys).reset_index(drop=True)

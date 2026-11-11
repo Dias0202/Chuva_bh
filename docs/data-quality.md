@@ -1,8 +1,8 @@
 # Relatório de qualidade dos dados
 
-Gerado por `scripts/backfill.py` em 2026-11-10.
+Gerado por `scripts/backfill.py` em 2026-11-11.
 
-| Dataset | Ponto | Ano | Linhas | Nulos | Fora da faixa | Chaves duplicadas | Lacunas (h) |
+| Dataset | Ponto | Ano | Linhas | Nulos | Fora da faixa | Duplicadas | Lacunas (h) |
 |---|---|---:|---:|---:|---:|---:|---:|
 | forecasts | A521 | 2021 | 6792 | 6792 | 0 | 0 | 0 |
 | forecasts | A521 | 2022 | 8760 | 8760 | 0 | 0 | 0 |
@@ -28,6 +28,14 @@ Gerado por `scripts/backfill.py` em 2026-11-10.
 | forecasts | A572 | 2024 | 8784 | 2837 | 0 | 0 | 0 |
 | forecasts | A572 | 2025 | 8760 | 0 | 0 | 0 | 0 |
 | forecasts | A572 | 2026 | 7512 | 0 | 0 | 0 | 0 |
+| metar | A521 | 2019 | 7869 | 14056 | 1 | 0 | 890 |
+| metar | A521 | 2020 | 7227 | 12207 | 0 | 1 | 1557 |
+| metar | A521 | 2021 | 8402 | 14945 | 1 | 2 | 358 |
+| metar | A521 | 2022 | 8721 | 15256 | 0 | 1 | 39 |
+| metar | A521 | 2023 | 8733 | 15584 | 0 | 1 | 27 |
+| metar | A521 | 2024 | 7403 | 12813 | 0 | 3 | 1381 |
+| metar | A521 | 2025 | 6565 | 11529 | 1 | 3 | 2195 |
+| metar | A521 | 2026 | 5645 | 9580 | 0 | 4 | 1904 |
 | observations | A521 | 2019 | 8760 | 4035 | 0 | 0 | 0 |
 | observations | A521 | 2020 | 8784 | 4709 | 0 | 0 | 0 |
 | observations | A521 | 2021 | 8760 | 4020 | 0 | 0 | 0 |

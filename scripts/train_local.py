@@ -43,7 +43,7 @@ REGION: Final = "us-east-2"
 CACHE_DIR: Final = ROOT / ".cache" / "curated"
 REPORT_PATH: Final = ROOT / "docs" / "evaluation.md"
 RESULTS_PATH: Final = ROOT / ".cache" / "evaluation.json"
-DATASETS: Final = ("observations", "forecasts")
+DATASETS: Final = ("observations", "forecasts", "metar")
 
 
 def sync(s3: S3Client, bucket: str, destination: Path) -> int:
@@ -93,13 +93,19 @@ def _predict(booster: xgb.Booster, frame: pd.DataFrame, features: tuple[str, ...
 
 
 def run_experiments(
-    rows_train: pd.DataFrame, rows_val: pd.DataFrame, rows_test: pd.DataFrame
+    rows_train: pd.DataFrame,
+    rows_val: pd.DataFrame,
+    rows_test: pd.DataFrame,
+    feature_sets: tuple[str, ...] = ("full", "obs_only"),
+    compare_weights: bool = True,
 ) -> list[dict[str, Any]]:
     positives = float(rows_train[LABEL].sum())
     imbalance = (len(rows_train) - positives) / positives
+    weights = [("1", 1.0), ("auto", imbalance)] if compare_weights else [("1", 1.0)]
     results = []
-    for feature_set, features in FEATURE_SETS.items():
-        for weight_name, weight in (("1", 1.0), ("auto", imbalance)):
+    for feature_set in feature_sets:
+        features = FEATURE_SETS[feature_set]
+        for weight_name, weight in weights:
             logger.info("Treinando feature_set=%s scale_pos_weight=%s", feature_set, weight_name)
             booster = train_booster(rows_train, rows_val, features, weight)
             report = compare(
@@ -123,6 +129,41 @@ def run_experiments(
                 }
             )
     return results
+
+
+def render_metar(results: list[dict[str, Any]], counts: dict[str, int]) -> str:
+    metrics = results[0]["report"]["metrics"]
+    lines = [
+        "",
+        "## Modo METAR (Pampulha)",
+        "",
+        "Mesmas regras de split, só com o ponto A521 e o período com METAR do aeroporto. Linhas: "
+        f"treino {counts['train']}, validação {counts['validation']}, teste {counts['test']}.",
+        "",
+        "| Preditor | Brier | Skill vs melhor baseline | PR-AUC | CSI |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for name in ("persistence", "forecast"):
+        m = metrics[name]
+        lines.append(
+            f"| baseline: {name} | {_fmt(m['brier'])} | — "
+            f"| {_fmt(m['pr_auc'])} | {_fmt(m['csi'])} |"
+        )
+    for result in results:
+        report = result["report"]
+        m = report["metrics"]["model"]
+        lines.append(
+            f"| XGBoost {result['feature_set']} | {_fmt(m['brier'])} "
+            f"| {_fmt(report['brier_skill_vs_best_baseline'])} | {_fmt(m['pr_auc'])} "
+            f"| {_fmt(m['csi'])} |"
+        )
+    lines += [
+        "",
+        "O conjunto `metar` não usa a observação do INMET nas features, só o METAR do aeroporto e",
+        "a previsão numérica. A persistência usa a chuva medida pelo INMET, que o modo METAR não",
+        "tem em tempo real; ela fica como referência de qualidade, não como alternativa.",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _fmt(value: float) -> str:
@@ -215,13 +256,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     observations = read_partitioned(CACHE_DIR / "observations")
     forecasts = read_partitioned(CACHE_DIR / "forecasts")
+    metar = read_partitioned(CACHE_DIR / "metar")
     _, split = prepare(observations, forecasts, args.test_year)
     counts = {n: len(getattr(split, n)) for n in ("train", "validation", "test")}
     results = run_experiments(split.train, split.validation, split.test)
 
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     RESULTS_PATH.write_text(json.dumps(results, default=float), encoding="utf-8")
-    REPORT_PATH.write_text(render(results, counts, args.test_year), encoding="utf-8")
+    # Modo METAR: só a Pampulha e só o período com METAR, para todos no mesmo conjunto.
+    _, metar_split = prepare(observations, forecasts, args.test_year, metar, "metar")
+    metar_counts = {n: len(getattr(metar_split, n)) for n in ("train", "validation", "test")}
+    metar_results = run_experiments(
+        metar_split.train,
+        metar_split.validation,
+        metar_split.test,
+        feature_sets=("metar", "full", "obs_only"),
+        compare_weights=False,
+    )
+    report = render(results, counts, args.test_year) + render_metar(metar_results, metar_counts)
+    REPORT_PATH.write_text(report, encoding="utf-8")
     print(f"Relatório gravado em {REPORT_PATH}")
     return 0
 

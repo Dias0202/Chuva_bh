@@ -112,7 +112,7 @@ class ServingStack(Stack):
                 "MODEL_PARAMETER": MODEL_PARAMETER,
             },
         )
-        for prefix in ("observations/*", "forecasts/*"):
+        for prefix in ("observations/*", "forecasts/*", "metar/*"):
             curated_bucket.grant_read(function, prefix)
         self.table.grant(function, "dynamodb:PutItem")
         self.model_parameter.grant_read(function)

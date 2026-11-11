@@ -85,7 +85,8 @@ def build_pipeline(settings: PipelineSettings, session: PipelineSession) -> Pipe
                     source=f"s3://{settings.curated_bucket}/{name}/",
                     destination=f"{_PROCESSING}/input/{name}",
                 )
-                for name in ("observations", "forecasts")
+                # O METAR só é usado pelo conjunto de features `metar`.
+                for name in ("observations", "forecasts", "metar")
             ],
             outputs=[
                 ProcessingOutput(output_name=name, source=f"{_PROCESSING}/output/{name}")

@@ -34,13 +34,29 @@ SPLITS = ("train", "validation", "test")
 
 
 def prepare(
-    observations: pd.DataFrame, forecasts: pd.DataFrame, test_year: int
+    observations: pd.DataFrame,
+    forecasts: pd.DataFrame,
+    test_year: int,
+    metar: pd.DataFrame | None = None,
+    feature_set: str = "full",
 ) -> tuple[pd.DataFrame, Split]:
-    """Restringe à janela com previsão histórica, para comparar todos no mesmo período."""
+    """Restringe à janela com previsão histórica, para comparar todos no mesmo período.
+
+    No conjunto `metar`, restringe também aos pontos e ao período com METAR.
+    """
     history = historical_forecasts(forecasts)
-    rows = build_dataset(observations, history)
+    rows = build_dataset(observations, history, metar=metar)
     rows = rows[rows["issued_at"] >= history["valid_at"].min()]
+    if feature_set == "metar":
+        if metar is None or metar.empty:
+            raise ValueError("o conjunto metar exige o dataset de METAR")
+        rows = rows[rows["point_id"].isin(set(metar["point_id"]))]
+        rows = rows[rows["issued_at"] >= pd.Timestamp(metar["observed_at"].min())]
     return rows, temporal_split(rows, test_year)
+
+
+def read_optional(path: Path) -> pd.DataFrame | None:
+    return read_partitioned(path) if path.exists() and any(path.rglob("*.parquet")) else None
 
 
 def write_outputs(split: Split, feature_set: str, output_dir: Path) -> dict[str, int]:
@@ -70,7 +86,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     observations = read_partitioned(args.input_dir / "observations")
     forecasts = read_partitioned(args.input_dir / "forecasts")
-    _, split = prepare(observations, forecasts, args.test_year)
+    metar = read_optional(args.input_dir / "metar")
+    _, split = prepare(observations, forecasts, args.test_year, metar, args.feature_set)
     counts = write_outputs(split, args.feature_set, args.output_dir)
     logger.info("Linhas por conjunto: %s", counts)
     return 0
