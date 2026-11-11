@@ -18,11 +18,15 @@ future in the historical data, the gain is 2.8%. See the [model card](docs/model
 | 3 | Serverless endpoint, hourly scoring, DynamoDB, HTTP API | Deployed; METAR model v3 forecasts Pampulha every hour |
 | 4 | LangGraph agent on AgentCore, Knowledge Base, Guardrail, evaluation | Deployed; 89% tool accuracy, 0.96 faithfulness |
 | 5 | Quality and drift monitoring, dashboard, alarms, retraining | Deployed; alarm and retraining tested end to end |
+| 6 | Web site with public forecasts and a signed-in chat | Deployed on CloudFront with Cognito |
 
 Live forecasts run every hour for Pampulha in METAR mode, which uses the airport's public
 weather reports instead of the INMET API ([ADR-013](docs/adr/013-modo-metar.md)). The other
 three points need the INMET API token, which has been requested. Observed rainfall for quality
 monitoring still arrives about one month late.
+
+Site: public forecasts and a chat with the agent for invited users, served by CloudFront with
+Cognito sign-in (`scripts/web_ops.py`).
 
 Architecture and request flow: [docs/architecture.md](docs/architecture.md). Decisions:
 [docs/adr](docs/adr/README.md). Exam mapping: [docs/exam-mapping.md](docs/exam-mapping.md).
