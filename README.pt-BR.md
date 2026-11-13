@@ -1,5 +1,7 @@
 # chuva-bh
 
+[English](README.md) · **Português**
+
 Previsão de chuva para as próximas horas em Belo Horizonte, ponto a ponto, com uma
 probabilidade que se pode levar a sério: cada número é conferido depois contra o que o
 pluviômetro mediu.
@@ -113,7 +115,18 @@ convertida em probabilidade. As métricas são do ano de 2025, que ficou fora do
 | | Previsão numérica | 0,0253 | 0,162 |
 | | Modelo com o METAR do aeroporto | **0,0225** | **0,357** |
 
-Nos dois conjuntos, o ganho no Brier fica entre 11% e 12% sobre a melhor referência. O PR-AUC,
+Nos dois conjuntos, o ganho no Brier fica entre 11% e 12% sobre a melhor referência.
+
+> **Ressalva importante: esses números são otimistas.** As variáveis de previsão numérica
+> (`fc_*`) vêm da Historical Forecast API da Open-Meteo, que monta a série com rodadas
+> sucessivas sem informar a hora de emissão. Para 3 h e 6 h, parte desses valores vem de
+> rodadas emitidas *depois* do momento da previsão, o que não estaria disponível em produção
+> ([ADR-009](docs/adr/009-vazamento-na-previsao-historica.md)). O modelo em produção (modo
+> METAR) também usa essas variáveis. Sem elas (conjunto `obs_only`, só observações e
+> calendário), o ganho no Brier sobre a melhor referência cai para **2,8%** (Brier 0,0232,
+> PR-AUC 0,271) nos quatro pontos e para 0,8% na Pampulha. A ingestão horária já grava cada
+> rodada com `issued_at`; o retreino só com rodadas emitidas até o instante da previsão, que
+> elimina o vazamento, está planejado para quando houver alguns meses dessa série. O PR-AUC,
 que mede a capacidade de pôr as horas de chuva no topo, cai com a antecedência. No modelo em
 produção, ele vai de 0,48 em 1 hora a 0,27 em 6 horas.
 Detalhes em [docs/evaluation.md](docs/evaluation.md) e no
@@ -300,3 +313,7 @@ avisos do INMET. Em risco de alagamento ou deslizamento, siga sempre as orienta�
 Dados de previsão numérica: [Open-Meteo](https://open-meteo.com), sob licença CC BY 4.0.
 Dados de estações: Instituto Nacional de Meteorologia (INMET). Boletins METAR: Aviation
 Weather Center e Iowa Environmental Mesonet.
+
+## Licença
+
+Código sob a [licença MIT](LICENSE).
